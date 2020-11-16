@@ -23,6 +23,7 @@ from sklearn.model_selection import GridSearchCV
 
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.tree import DecisionTreeRegressor
 
 from sklearn.metrics import r2_score
@@ -46,7 +47,14 @@ def optimize_predictive_model_and_predict(df_tr, df_ts, folds = 3):
         'n_estimators' : [50, 100, 200, 500]
         ,'max_depth':[5, 10, 15]
         #, 'min_samples_split': [5, 50, 100]
-        }    
+        } 
+    
+    param_grid_gbr = {
+        'n_estimators' : [50, 100, 200, 500]
+        ,'max_depth':[5, 10, 15]
+        , 'learning_rate':[0.1, 0.5]
+        #, 'min_samples_split': [5, 50, 100]
+        } 
     
     # param_grid_dtr = {
     #     'max_depth' : [2, 4, 6]
@@ -57,6 +65,7 @@ def optimize_predictive_model_and_predict(df_tr, df_ts, folds = 3):
        
     lm = LinearRegression()
     rf = RandomForestRegressor()
+    gbr =  GradientBoostingRegressor()
     
     folds=folds;    
     
@@ -64,7 +73,8 @@ def optimize_predictive_model_and_predict(df_tr, df_ts, folds = 3):
                             n_jobs = 1,cv= folds, scoring = 'neg_root_mean_squared_error', verbose = 1, return_train_score=False)
     gs_RF_wc = GridSearchCV(estimator = rf, param_grid = param_grid_rf, 
                             n_jobs = 1,cv= folds, scoring = 'neg_root_mean_squared_error', verbose = 1, return_train_score=False)
-# gs_GBM_wc = GridSearchCV(pipeGBM_wc, param_grid = param_grid_gbm_wc, 
+    gs_GBM_wc = GridSearchCV(estimator= gbr, param_grid = param_grid_gbr, 
+                             n_jobs = 1,cv=folds, scoring = 'neg_root_mean_squared_error', verbose = 1, return_train_score=False)
 #                             n_jobs = 1,cv=folds, scoring = my_scorer.prc_score, return_train_score=False)
 # split into train and test
     X = df_tr.loc[:, df_tr.columns != 'rate']
@@ -72,8 +82,8 @@ def optimize_predictive_model_and_predict(df_tr, df_ts, folds = 3):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.33, random_state = 10)
 
 
-    grids = [gs_LR_wc ,gs_RF_wc]  #,  gs_GBM_wc, gs_GBM_im, gs_RF_im, gs_LR_im ]
-    grid_dict = {0:'LinearRegression', 1: 'RandomForest'} # , 3: 'GBMWithImb', 4:'RandomForestWithImb', 5: 'LogisticWithImb'}
+    grids = [gs_LR_wc ,gs_RF_wc, gs_GBM_wc]  #,  gs_GBM_wc, gs_GBM_im, gs_RF_im, gs_LR_im ]
+    grid_dict = {0:'LinearRegression', 1: 'RandomForest', 2: 'GradientBoostingRegressor'} # , 3: 'GBMWithImb', 4:'RandomForestWithImb', 5: 'LogisticWithImb'}
     
 
     best_mse = 100

@@ -68,6 +68,7 @@ def crete_alternatives_map(data, alternative_name = 'media_url'):
     data_copy['alternative_id'] = data_copy.groupby(alternative_name).ngroup()
     
     alternative_map = data_copy[['media_url', 'alternative_id']].drop_duplicates().reset_index().drop('index', axis = 1)
+    alternative_map = alternative_map.rename(columns = {'media_url' : 'alternative_name'})
     
     return alternative_map
 
@@ -108,7 +109,7 @@ def prepare_crowd_data(df_crowd, alternative_map):
     #alternative_map = data[['media_url', 'alternative_id']].drop_duplicates().reset_index().drop('index', axis = 1)
     #alternative_map['alternative_id']  = alternative_map['alternative_id'].astype(str)
     #alternative_map.dtypes
-    data = pd.merge(data, alternative_map, how = 'inner', on = 'media_url')
+    data = pd.merge(data, alternative_map, how = 'inner', left_on = 'media_url', right_on= 'alternative_name')
     
     ###### Prepare crow data / select atributes, rename attributes and create label for crowd row
     final_col = ['annotator', 'alternative_id', 'task_1_answer']
@@ -116,11 +117,11 @@ def prepare_crowd_data(df_crowd, alternative_map):
     data['annotator'] =  data['annotator'] + '_crowd'  #data.annotator.str.replace('CredCo-', 'crowd_')
 
     
-    data = data.rename(columns={'annotator':'voter', 'alternative_id':'vote', 'task_1_answer': 'rate'})
+    data = data.rename(columns={'annotator':'voter', 'task_1_answer': 'rate'})
     data = data[data.rate.notnull()]
     data = data.drop_duplicates()
     
-    names = list(data['vote'].unique())
+    names = list(data['alternative_id'].unique())
     names.sort()
     
     return data, names
@@ -210,26 +211,26 @@ def prepare_expert_data(data_folder, alternative_map):
     
     df_journal['Score'] = journal['Score'].str.split('\)', expand = True)[0]
     
-    df_science = pd.merge(alternative_map, df_science, how = 'inner', left_on = 'media_url', right_on =  'URL')[['alternative_id', 'URL', 'Score', 'voter']]
-    df_journal = pd.merge(alternative_map, df_journal, how = 'inner', left_on = 'media_url', right_on =  'URL')[['alternative_id', 'URL', 'Score', 'voter']]
+    df_science = pd.merge(alternative_map, df_science, how = 'inner', left_on = 'alternative_name', right_on =  'URL')[['alternative_id', 'URL', 'Score', 'voter']]
+    df_journal = pd.merge(alternative_map, df_journal, how = 'inner', left_on = 'alternative_name', right_on =  'URL')[['alternative_id', 'URL', 'Score', 'voter']]
     
     df_expert = pd.concat([df_science, df_journal]).reset_index().drop('index', axis = 1)
     df_expert = df_expert[['voter', 'alternative_id', 'Score']]
     
-    df_expert = df_expert.rename(columns={ 'alternative_id':'vote', 'Score': 'rate'})
+    df_expert = df_expert.rename(columns={ 'Score': 'rate'})
     df_expert = df_expert[df_expert.rate.notnull()]
     df_expert = df_expert.drop_duplicates()
     
     df_science = df_expert[df_expert['voter'].str.contains('Science')]
     df_journal = df_expert[df_expert['voter'].str.contains('Journalism')]
     return df_expert, df_science, df_journal 
-
+           
 
 # df_trans = pd.concat([all_crowd_grades, all_exp_grades]) #.reset_index() #df_expert
 # df_trans = df_crowd_2020
 # alternative_space = list(voters_lookup['voter_id'])  alt_names  
 
-def get_aggregated_data(df_trans, alternative_space, index_column = 'voter', column= 'vote', value = 'rate'):
+def get_aggregated_data(df_trans, alternative_space, index_column = 'voter', column= 'alternative_id', value = 'rate'):
     """
     Returns:
         Aggregated DF: Sparse Data Frame where every column represents alternatives and every row is a voter. 
@@ -261,8 +262,9 @@ def get_aggregated_data(df_trans, alternative_space, index_column = 'voter', col
     #names.remove('voter')
     
     return data_agg #, names #, OHE  
-all_crowd_grades.pivot(index = index_column, columns = column, values = value)
-all_exp_grades.pivot(index = index_column, columns = column, values = value)
+
+#all_crowd_grades.pivot(index = index_column, columns = column, values = value)
+#all_exp_grades.pivot(index = index_column, columns = column, values = value)
 
 # data = expert_crowd_agg
 def create_ratings_and_mapping(data, alt_names, voter_col = 'voter'):
@@ -278,20 +280,43 @@ def create_ratings_and_mapping(data, alt_names, voter_col = 'voter'):
     
     return ratings, mapa_alt, mapa_user
 
-# size = mask_test_size
-def train_test_split(ratings, size):
+# size = 0.1 mask_test_size
+def train_test_split(ratings, size, restricted_count):
     
     test = np.zeros(ratings.shape)
     train = ratings.copy()
     
-    for user in range(ratings.shape[0]):
-        test_ratings = np.random.choice(ratings[user, :].nonzero()[0], size=size, replace=False)
-        train[user, test_ratings] = 0.
-        test[user, test_ratings] = ratings[user, test_ratings]
+    # i,j = np.nonzero(ratings)
+
+    # ix = np.random.choice(len(i), int(np.floor(size * len(i))), replace=False)
+   
+    # train[i[ix], j[ix]] = 0.
+    # test[i[ix], j[ix]] = ratings[i[ix], j[ix]]
+    for alt in range(ratings.shape[1]):
+        alt_num =  len([a for a in ratings[:, alt] if a != 0])
+        num_size = np.round(alt_num * size).astype('int')
+        if alt_num < restricted_count:
+            continue
+        else:
+            test_ratings = np.random.choice(ratings[:, alt].nonzero()[0], size=num_size, replace=False)
+            train[test_ratings, alt] = 0.
+            test[test_ratings, alt] = ratings[test_ratings, alt]
+        
+    #user = 0
+    # for user in range(ratings.shape[0]):
+    #     alt_num =  len([a for a in ratings[user, :] if a != 0])
+    #     num_size = np.round(alt_num * size).astype('int')
+    #     if alt_num < restricted_count:
+    #         continue
+    #     else:
+    #         test_ratings = np.random.choice(ratings[user, :].nonzero()[0], size=num_size, replace=False)
+    #         train[user, test_ratings] = 0.
+    #         test[user, test_ratings] = ratings[user, test_ratings]
         
     # Test and training are truly disjoint
     assert(np.all((train * test) == 0)) 
     return train, test
+
 
 def calculate_sparsity(df_sparse):
         

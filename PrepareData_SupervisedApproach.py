@@ -136,7 +136,7 @@ def create_train_data_for_predicting_rates(df_expert_crowd, user_factors, alt_fa
                              validate=None)
     #len(df_crowd_alt['vote'].unique())
     final_data =  pd.merge(final_data, alt_factors_df, how='inner', # on='voter_id', 
-                             left_on='vote', right_on='alternative_id',
+                             left_on='alternative_id', right_on='alternative_id',
                              left_index=False, right_index=False, #sort=True,  #suffixes=('_x', '_y'), copy=True, indicator=False,
                              validate=None)
     final_data = final_data.astype({'rate': 'int32'})#.dtypes
@@ -185,11 +185,11 @@ def prepare_data_for_grade_optimization(all_pred, test_combinations, df_expert, 
     test_pred_expert = test_combinations[test_combinations['voter_id'].isin(expert_ids)]
     test_pred_crowd = test_combinations[test_combinations['voter_id'].isin(crowd_ids)]
 
-    train_crowd = pd.merge(df_crowd, voters_lookup, on = 'voter')[['voter_id', 'vote', 'rate']]
-    train_crowd = train_crowd.rename(columns=({ 'vote' : 'alternative_id'}))
+    train_crowd = pd.merge(df_crowd, voters_lookup, on = 'voter')[['voter_id', 'alternative_id', 'rate']]
+    #train_crowd = train_crowd.rename(columns=({ 'vote' : 'alternative_id'}))
     
-    train_expert = pd.merge(df_expert, voters_lookup, on = 'voter')[['voter_id', 'vote', 'rate']]
-    train_expert = train_expert.rename(columns=({ 'vote' : 'alternative_id'}))
+    train_expert = pd.merge(df_expert, voters_lookup, on = 'voter')[['voter_id', 'alternative_id', 'rate']]
+    #train_expert = train_expert.rename(columns=({ 'vote' : 'alternative_id'}))
         
     
     

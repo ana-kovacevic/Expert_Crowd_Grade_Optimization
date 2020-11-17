@@ -19,6 +19,8 @@ sys.path.append('F:\PROJEKTI\ONR_FON\Experiments\Expert-Crowd')
 
 import pandas as pd
 import numpy as np
+import time
+
 
 from Load_credibility_data import read_data_credibility
 
@@ -41,7 +43,7 @@ from Find_Best_Regression_Model import optimize_predictive_model_and_predict
 
 #from Optimize_Grades import objective_function_grades_absolute
 #from Optimize_Grades import optimize_grade_absolute_dist
-#from Optimize_Grades import calculate_satisfaction_absolute
+from Optimize_Grades import calculate_satisfaction_absolute
 #from Optimize_Grades import nash_bargaining_solution
 #from Optimize_Grades import expectation_maximization_nash
 #from Optimize_Grades import maximization_kalai_smorodinsky
@@ -91,8 +93,8 @@ expert_crowd_agg = get_aggregated_data(df_expert_crowd, alt_names)
      Create neccesery variables and result datasets  
 '''
 
-mask_test_size = 0.2
-latent_factors =  [ 10, 20, 30, 40, 50, 70, 100] #[20, 30]
+mask_test_size = 0.1
+latent_factors =  [20, 30, 40, 50, 70, 100] #[20, 30]
 regularizations = [0., 0.1, 0.3, 0.5, 0.7, 1., 10., 100.]  #[0.3, 0.5, 0.7]    # [0., 0.1] 
 regularizations.sort()
 iter_array = [10, 50, 100, 150] #[1, 2, 5, 10, 25, 50, 100]
@@ -112,6 +114,7 @@ train, test = train_test_split(ratings, mask_test_size, 3)
 #print(df_sparse)
 # Check sparsity of data
 print(np.sort(np.count_nonzero(train, axis= 0)))
+print(np.sort(np.count_nonzero(train, axis= 1)))
 
 print("Sparsity of data is: {:.2f} %. ".format( calculate_sparsity(ratings)))
 print("Sparsity of training data is: {:.2f} %. ".format( calculate_sparsity(train)))
@@ -121,14 +124,17 @@ print("Sparsity of training data is: {:.2f} %. ".format( calculate_sparsity(trai
 -------------- Optimize number of factors based on MAE
 """
 
+start = time.time()
 best_params_als = find_best_parms_for_ALS(latent_factors, regularizations, iter_array, train, test)
+end = time.time()
+print(end - start)
 
 print(best_params_als)
 
 model_als = best_params_als['model']
 num_factors = best_params_als['n_factors']
 
-best_params_als.to_csv('results/ALS_best_params_' + expert_type + '.csv')
+#pd.DataFrame(best_params_als).to_csv('results/ALS_best_params_' + expert_type + '.csv')
 
 user_factors = model_als.user_vecs
 alt_factors = model_als.item_vecs
@@ -161,7 +167,7 @@ test_combinations = non_rated_combinations[[ 'voter_id', 'alternative_id']]
     Select data for model
 '''
 
-final_train_data = final_train_data.drop(['voter', 'voter_id', 'vote', 'alternative_id'], axis=1)#.drop_duplicates()
+final_train_data = final_train_data.drop(['voter', 'voter_id', 'alternative_id'], axis=1)#.drop_duplicates()
 non_rated_combinations = non_rated_combinations.drop([ 'voter_id',  'alternative_id'], axis=1)
 
 
@@ -169,8 +175,12 @@ non_rated_combinations = non_rated_combinations.drop([ 'voter_id',  'alternative
 """
     Find Best Predictive model
 """
+start = time.time()
 all_pred, grids, best_mod = optimize_predictive_model_and_predict(final_train_data, non_rated_combinations, folds = 3)
 all_exp_grades, all_crowd_grades = prepare_data_for_grade_optimization(all_pred, test_combinations, df_selected_expert, df_crowd, voters_lookup, expert_ids, crowd_ids)
+end = time.time()
+print(end - start)
+
 #_, all_crowd_grades = prepare_data_for_grade_optimization(all_pred, test_combinations, df_selected_expert, df_crowd, voters_lookup, [228,229,230], crowd_ids)
 
 #
@@ -291,12 +301,12 @@ a = pd.merge(res_baseline[['alternative_id','crowd_sat-crowd_median']],
 
 def calculate_crowd_exper_diff(df_crowd_sample, df_selected_expert, df_alt_votes, crowd_ids):    
     
-    crowd_original_medians = df_crowd_sample.groupby('vote').agg('median').reset_index()
-    crowd_original_medians = crowd_original_medians.rename(columns = {'vote':'alternative_id', 'rate':'crowd_original_median'})
+    crowd_original_medians = df_crowd_sample.groupby('alternative_id').agg('median').reset_index()
+    crowd_original_medians = crowd_original_medians.rename(columns = { 'rate':'crowd_original_median'})
     
     
-    expert_original_medians = df_selected_expert.groupby('vote').agg('median').reset_index()
-    expert_original_medians = expert_original_medians.rename(columns = {'vote':'alternative_id', 'rate':'expert_original_median'})
+    expert_original_medians = df_selected_expert.groupby('alternative_id').agg('median').reset_index()
+    expert_original_medians = expert_original_medians.rename(columns = {'rate':'expert_original_median'})
     
     original_medians = pd.merge(expert_original_medians, crowd_original_medians, how = 'inner', on = 'alternative_id')
     
@@ -317,11 +327,14 @@ def calculate_crowd_exper_diff(df_crowd_sample, df_selected_expert, df_alt_votes
     return orig_diff, estm_diff
 
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 
 def plot_medians(title_str1, df_crowd, df_selected_expert, df_alt_votes, crowd_ids, title_str2):
     plot_df = pd.DataFrame(columns=['crowd_count', 'diff_expert_median', 'estimated_crowd'])
     for i in range(1, 80):
-        df_crowd_sample = df_crowd.groupby('vote', group_keys = False).apply(lambda x: x.sample(min(len(x),i)))
+        df_crowd_sample = df_crowd.groupby('alternative_id', group_keys = False).apply(lambda x: x.sample(min(len(x),i)))
         diff = calculate_crowd_exper_diff(df_crowd_sample, df_selected_expert, df_alt_votes, crowd_ids)
         row = (i,) + diff
         plot_df = plot_df.append(pd.Series(list(row), index=plot_df.columns ), ignore_index= True)
@@ -357,10 +370,11 @@ science_alts = list(science_T[science_T['avg_diff'] < 0.5]['vote'])
 final_science = df_science[df_science['vote'].isin(science_alts)]
 
 
-dfs_for_plotting = [('Journal experts and ', final_journal, 'Crowd factors predictions', df_votes_crowd_alone),
-                    ('Journal experts and ', final_journal, 'Crowd and Journal factors predictions', df_votes_crowd_journal),
-                    ('Science experts and ', final_science, 'Crowd factors predictions', df_votes_crowd_alone),
-                    ('Science experts and ', final_science, 'Crowd and Science factors predictions', df_votes_crowd_science)]
+dfs_for_plotting = [('Journal experts and ', df_journal, 'Crowd factors predictions', df_alt_votes)
+                    ,('Journal experts and ', df_journal, 'Crowd and Journal factors predictions', df_alt_votes)
+                    #,('Science experts and ', final_science, 'Crowd factors predictions', df_votes_crowd_alone)
+                    #,('Science experts and ', final_science, 'Crowd and Science factors predictions', df_votes_crowd_science)
+                    ]
 
 for i in range(len(dfs_for_plotting)):
     parameters = dfs_for_plotting[i]
@@ -369,15 +383,14 @@ for i in range(len(dfs_for_plotting)):
 
 
 
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-plt.figure(figsize=(30,10))
-sns.barplot(x=plot_df['crowd_count'], y = plot_df['diff_expert_median'])
-plt.axhline(y = plot_df['estimated_crowd'].unique())
-plt.title('Journal experts')
-#plt.ylim(0.2, 1.1)
-plt.show()
+
+# plt.figure(figsize=(30,10))
+# sns.barplot(x=plot_df['crowd_count'], y = plot_df['diff_expert_median'])
+# plt.axhline(y = plot_df['estimated_crowd'].unique())
+# plt.title('Journal experts')
+# #plt.ylim(0.2, 1.1)
+# plt.show()
 
 
 crowd_by_alt = df_crowd.groupby('vote').agg('count').reset_index().rename(columns = {'vote':'alternative_id', 'rate':'crowd_number'})

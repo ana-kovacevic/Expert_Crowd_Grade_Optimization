@@ -40,13 +40,17 @@ from PrepareData_SupervisedApproach import prepare_data_for_grade_optimization
 
 from Find_Best_Regression_Model import optimize_predictive_model_and_predict
 
-
+from scipy.optimize import minimize #,optimize
 #from Optimize_Grades import objective_function_grades_absolute
 #from Optimize_Grades import optimize_grade_absolute_dist
 from Optimize_Grades import calculate_satisfaction_absolute
 #from Optimize_Grades import nash_bargaining_solution
 #from Optimize_Grades import expectation_maximization_nash
 #from Optimize_Grades import maximization_kalai_smorodinsky
+from Optimize_Grades import nash_solution
+from Optimize_Grades import lambda_const
+
+from Quick_Data_Exploration import plot_medians
 
 from Evaluate_and_Results import nash_results
 from Evaluate_and_Results import kalai_results
@@ -55,6 +59,7 @@ from Evaluate_and_Results import avg_satisfaction_by_group
 from Evaluate_and_Results import relative_detail_satisfaction_kalai
 from Evaluate_and_Results import relative_detail_satisfaction_baseline
 from Evaluate_and_Results import relative_overall_satisfaction
+from Evaluate_and_Results import add_median_variation
 
 '''
     Read Data
@@ -68,9 +73,8 @@ expert_type = 'journal'
 
 alts_dict = dict(zip(alternative_map['alternative_id'] , alternative_map['alternative_name']))
 #### create mapping of all avaible users
-voter_map = crete_voter_map([df_selected_expert, df_crowd])
+#voter_map = crete_voter_map([df_selected_expert, df_crowd])
 #voter_map = crete_voter_map([df_crowd])
-voter_dict = dict(zip(voter_map['voter_id'], voter_map['voter']))
 
 #### transacional data of expert and crowd that labeled same alternatives as experts
 df_expert_crowd = pd.concat([df_selected_expert, df_crowd], ignore_index=True)
@@ -81,12 +85,6 @@ crowd_agg = get_aggregated_data(df_crowd, alt_names)
 expert_agg = get_aggregated_data(df_selected_expert, alt_names)
 #expert_agg = aggregate_experts(expert_agg[alt_names], points_rank, team_size, alt_names)
 expert_crowd_agg = get_aggregated_data(df_expert_crowd, alt_names)
-
-# np.count_nonzero(np.array(crowd_agg)[:, 1:], axis= 1)
-# np.mean(np.count_nonzero(np.array(crowd_agg)[:, 1:], axis= 1))
-
-# np.count_nonzero(np.array(crowd_agg)[:, 1:], axis= 0)
-# np.median(np.count_nonzero(np.array(crowd_agg)[:, 1:], axis= 0))
 
 
 '''
@@ -109,15 +107,26 @@ Create data for factorization
 '''
 
 ratings, alts_lookup, voters_lookup = create_ratings_and_mapping(expert_crowd_agg, alt_names)
+#check that the mask of alternatives is same
+assert(np.sum(np.array(alts_lookup['alternative']) != np.array(alts_lookup['alternative_id'])) == 0)
 #ratings, alts_lookup, voters_lookup = create_ratings_and_mapping(crowd_agg, alt_names)
 train, test = train_test_split(ratings, mask_test_size, 3)
 #print(df_sparse)
-# Check sparsity of data
+voter_dict = dict(zip(voters_lookup['voter_id'], voters_lookup['voter']))
+# Check that non of alternatives or user is not empty in train set
 print(np.sort(np.count_nonzero(train, axis= 0)))
 print(np.sort(np.count_nonzero(train, axis= 1)))
 
+# Check sparsity of data
 print("Sparsity of data is: {:.2f} %. ".format( calculate_sparsity(ratings)))
 print("Sparsity of training data is: {:.2f} %. ".format( calculate_sparsity(train)))
+
+##### replace voters name with ids in all dataframes
+df_crowd = pd.merge( voters_lookup,df_crowd, how = 'inner', on = 'voter').drop('voter', axis = 1)
+df_expert_crowd = pd.merge( voters_lookup, df_expert_crowd, how = 'inner', on = 'voter').drop('voter', axis = 1)
+df_selected_expert = pd.merge(voters_lookup,  df_selected_expert, how = 'inner', on = 'voter').drop('voter', axis = 1)
+crowd_agg = pd.merge(voters_lookup,  crowd_agg, how = 'inner', on = 'voter').drop('voter', axis = 1)
+expert_agg = pd.merge(voters_lookup,  expert_agg, how = 'inner', on = 'voter').drop('voter', axis = 1)
 
 """
 ################### Difine Factorisation Model 
@@ -128,7 +137,6 @@ start = time.time()
 best_params_als = find_best_parms_for_ALS(latent_factors, regularizations, iter_array, train, test)
 end = time.time()
 print(end - start)
-
 print(best_params_als)
 
 model_als = best_params_als['model']
@@ -138,7 +146,6 @@ num_factors = best_params_als['n_factors']
 
 user_factors = model_als.user_vecs
 alt_factors = model_als.item_vecs
-
 
 #pd.DataFrame(user_factors).to_csv('results/user_factors_without_experts_sci.csv')
 #pd.DataFrame(alt_factors).to_csv('results/alts_factors_without_experts_sci.csv')
@@ -169,7 +176,6 @@ test_combinations = non_rated_combinations[[ 'voter_id', 'alternative_id']]
 
 final_train_data = final_train_data.drop(['voter', 'voter_id', 'alternative_id'], axis=1)#.drop_duplicates()
 non_rated_combinations = non_rated_combinations.drop([ 'voter_id',  'alternative_id'], axis=1)
-
 
 
 """
@@ -236,7 +242,16 @@ result_optm_abs = calculate_satisfaction_absolute(df_alt_votes, result_optm_abs,
 ################################ Results
 '''
 ###### nash
+
+
+cons = [{'type':'eq', 'fun': lambda_const}]
+bnds = ((0.01, 0.99), (0.01, 0.99), (1, 5))
+
+
+res_nash = nash_results(df_alt_votes , crowd_ids, expert_ids, cons, lambda_expert = 0.5)
+
 res_nash = nash_results(df_alt_votes, result_optm_abs , crowd_ids, expert_ids, lambda_expert = 0.5)
+
 res_nash.to_csv('results/results_nash.csv')   
 
 ###### kalai
@@ -292,67 +307,23 @@ res_baseline.to_csv('results/results_baseline_scietist.csv')
 
 res_relative_sat = relative_overall_satisfaction(res_kalai, res_baseline, max_satisfaction)
 
-a = pd.merge(res_baseline[['alternative_id','crowd_sat-crowd_median']],
-         res_kalai[['alternative_id', 'crowd_sat']], on = 'alternative_id')
+# a = pd.merge(res_baseline[['alternative_id','crowd_sat-crowd_median']],
+#          res_kalai[['alternative_id', 'crowd_sat']], on = 'alternative_id')
 
 #################### Result analysis - lower uncertanty
     
 #df_crowd_sample = df_crowd.groupby('vote', group_keys = False).apply(lambda x: x.sample(min(len(x),3)))
-
-def calculate_crowd_exper_diff(df_crowd_sample, df_selected_expert, df_alt_votes, crowd_ids):    
-    
-    crowd_original_medians = df_crowd_sample.groupby('alternative_id').agg('median').reset_index()
-    crowd_original_medians = crowd_original_medians.rename(columns = { 'rate':'crowd_original_median'})
-    
-    
-    expert_original_medians = df_selected_expert.groupby('alternative_id').agg('median').reset_index()
-    expert_original_medians = expert_original_medians.rename(columns = {'rate':'expert_original_median'})
-    
-    original_medians = pd.merge(expert_original_medians, crowd_original_medians, how = 'inner', on = 'alternative_id')
-    
-    
-    round_medians = df_alt_votes.copy().round()
-    #round_medians['crowd_median'] = df_alt_votes.round()[crowd_ids].apply(lambda x: np.median(x), axis = 1)
-    round_medians['crowd_median'] = round_medians[crowd_ids].apply(lambda x: np.median(x), axis = 1)
-    round_medians = round_medians[['alternative_id', 'crowd_median']]
-    
-    original_all = pd.merge(original_medians, round_medians, how = 'inner', on = 'alternative_id')
-    
-    original_all['original_diff'] = np.abs(np.array(original_all['expert_original_median']) - np.array(original_all['crowd_original_median']))
-    original_all['estimated_diff'] = np.abs(np.array(original_all['expert_original_median']) - np.array(original_all['crowd_median']))
-    
-    orig_diff = np.mean(np.array(original_all['original_diff']))
-    estm_diff = np.mean(np.array(original_all['estimated_diff']))
-    
-    return orig_diff, estm_diff
 
 
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-def plot_medians(title_str1, df_crowd, df_selected_expert, df_alt_votes, crowd_ids, title_str2):
-    plot_df = pd.DataFrame(columns=['crowd_count', 'diff_expert_median', 'estimated_crowd'])
-    for i in range(1, 80):
-        df_crowd_sample = df_crowd.groupby('alternative_id', group_keys = False).apply(lambda x: x.sample(min(len(x),i)))
-        diff = calculate_crowd_exper_diff(df_crowd_sample, df_selected_expert, df_alt_votes, crowd_ids)
-        row = (i,) + diff
-        plot_df = plot_df.append(pd.Series(list(row), index=plot_df.columns ), ignore_index= True)
-        plot_df['crowd_count'] = plot_df['crowd_count'].astype('int')
-   
-    plt.figure(figsize=(30,10))
-    sns.barplot(x=plot_df['crowd_count'], y = plot_df['diff_expert_median'])
-    plt.axhline(y = plot_df['estimated_crowd'].unique())
-    #plt.figure.suptitle(title_str1 + title_str2, fontsize=20)
-    plt.title(title_str1 + title_str2)
-    #plt.ylim(0.2, 1.1)
-    plt.show()
-
 df_votes_crowd_alone = get_aggregated_data(all_crowds_pred_alone , voters_lookup['voter_id'], index_column = 'alternative_id', column= 'voter_id', value = 'rate')
 df_votes_crowd_journal = get_aggregated_data(all_crowds_pred_journal , voters_lookup['voter_id'], index_column = 'alternative_id', column= 'voter_id', value = 'rate')
 df_votes_crowd_science = get_aggregated_data(all_crowds_pred_science , voters_lookup['voter_id'], index_column = 'alternative_id', column= 'voter_id', value = 'rate')
 
-journal_T = df_journal.pivot(index = 'vote', columns = 'voter', values = 'rate').groupby('vote').sum().reset_index()
+journal_T = df_journal.pivot(index = 'alternative_id', columns = 'voter', values = 'rate').groupby('alternative_id').sum().reset_index()
 journal_T['median'] = journal_T[['Journalism-1_expert', 'Journalism-2_expert',  'Journalism-3_expert']].apply(lambda x: np.median(x), axis = 1)
 exp_votes = np.array(journal_T[['Journalism-1_expert', 'Journalism-2_expert',  'Journalism-3_expert']] )
 exp_median = np.array(journal_T[['median']])
@@ -360,7 +331,7 @@ journal_T['avg_diff'] = np.mean(np.abs(exp_votes - exp_median), axis = 1)
 journal_alts = list(journal_T[journal_T['avg_diff'] < 0.5]['vote'])
 final_journal = df_journal[df_journal['vote'].isin(journal_alts)]
 
-science_T = df_science.pivot(index = 'vote', columns = 'voter', values = 'rate').groupby('vote').sum().reset_index()
+science_T = df_science.pivot(index = 'alternative_id', columns = 'voter', values = 'rate').groupby('alternative_id').sum().reset_index()
 science_T['median'] = science_T[['Science-1_expert', 'Science-2_expert', 'Science-3_expert']].apply(lambda x: np.median(x), axis = 1)
 
 exp_votes = np.array(science_T[['Science-1_expert', 'Science-2_expert', 'Science-3_expert']] )
@@ -382,20 +353,49 @@ for i in range(len(dfs_for_plotting)):
     print('Finished: ', str(i))
 
 
+# examp = np.array(df_alt_votes[crowd_ids])[0:4,0:5]
+# examp = df_alt_votes.iloc[0:4,1:6].round()
+# examp.shape
+#df_votes = alt_by_crowd
+#n_samples = i
 
 
-
-# plt.figure(figsize=(30,10))
-# sns.barplot(x=plot_df['crowd_count'], y = plot_df['diff_expert_median'])
-# plt.axhline(y = plot_df['estimated_crowd'].unique())
-# plt.title('Journal experts')
-# #plt.ylim(0.2, 1.1)
-# plt.show()
+# for i in range(sel[0].shape[1]):
+#     print(np.median(sel[0][i]))
 
 
-crowd_by_alt = df_crowd.groupby('vote').agg('count').reset_index().rename(columns = {'vote':'alternative_id', 'rate':'crowd_number'})
-expert_by_alt = df_selected_expert.groupby('vote').agg('count').reset_index().rename(columns = {'vote':'alternative_id', 'rate':'expert_number'})
+n_repetitions = 50
+a = crowd_agg.T
+a.dtypes
 
-num_by_alt = pd.merge(crowd_by_alt, expert_by_alt, how = 'outer', on = 'alternative_id', indicator = True)
+sel_crowd = df_crowd[df_crowd['alternative_id'].isin( list(df_selected_expert['alternative_id'].unique()))]
+
+alt_by_crowd = get_aggregated_data(sel_crowd, list(sel_crowd['voter_id'].unique()),
+                        index_column = 'alternative_id', column= 'voter_id', value = 'rate')
+
+ind = alt_by_crowd.iloc[:,1:][alt_by_crowd.iloc[:,1:] >0 ].count(axis= 0 )
+ind = ind[ind ==35].reset_index()
+ind = list(ind['voter_id'])
+alt_by_crowd = alt_by_crowd[ind]
+
+res_variation= pd.DataFrame()
+for i in range(1,78):
+    res_variation['var_'+str(i)] = add_median_variation(alt_by_crowd, n_repetitions, i)
+
+
+plot_data = pd.DataFrame(np.mean(res_variation)).reset_index().rename(columns=({'index': 'var', 0:"avg_var"}))
+plt.figure(figsize=(30,10))
+sns.barplot(x = plot_data['var'], y = plot_data['avg_var'])
+plt.title('Average varioation')
+#plt.ylim(0.2, 1.1)
+plt.show()
+
+
+crowd_by_alt = df_crowd.groupby('alternative_id').agg('count').reset_index().rename(columns = { 'rate':'crowd_number'})
+expert_by_alt = df_selected_expert.groupby('alternative_id').agg('count').reset_index().rename(columns = { 'rate':'expert_number'})
+
+num_by_alt = list(pd.merge(expert_by_alt, crowd_by_alt, how = 'inner', on = 'alternative_id', indicator = True)['alternative_id'])
+df_crowd[df_crowd['alternative_id'].isin(num_by_alt)]
+
 only_crowd_alts = num_by_alt[num_by_alt['_merge']== 'left_only'][['alternative_id', 'crowd_number']]
 both_alts = num_by_alt[num_by_alt['_merge']== 'both'][['alternative_id', 'crowd_number', 'expert_number']]

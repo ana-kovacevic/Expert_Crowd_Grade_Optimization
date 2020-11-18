@@ -15,9 +15,26 @@ from Data_Prepare import prepare_expert_data
 
 
 def read_data_credibility():
-    
     '''
-        Read Data
+    Procedure is used to transform and read Credibility data.
+    
+    Returns
+    -------
+    alternative_map : pandas dataframe
+        Generate id for each alternative name (media_url) and map create map between id and url.
+    alt_names : list
+        List of all alternatives.
+    df_crowd : pandas dataframe
+         Transactional data of all crowd grades (votes) .
+    df_expert : pandas dataframe
+        Transactional data of all expert grades (votes).
+    df_crowd_2020 : pandas dataframe
+        Transactional data of crowd grades (votes) for alternatives that were evaluated by experts.
+    df_science : pandas dataframe
+        Transactional data of science expert grades (votes).
+    df_journal : pandas dataframe
+        Transactional data of journal expert grades (votes).
+
     '''
     ### Files locations
 
@@ -47,9 +64,9 @@ def read_data_credibility():
 
     #### filter alternatives same as experts
     crowd_2020 = crowd_2020[crowd_2020['media_url'].isin(exp_urls)]
-    merged_crowd = pd.merge(crowd_all, crowd_2020, how='left',left_on = ['annotator', 'media_url'], right_on = ['annotator', 'media_url'], indicator = True)
+    #merged_crowd = pd.merge(crowd_all, crowd_2020, how='left',left_on = ['annotator', 'media_url'], right_on = ['annotator', 'media_url'], indicator = True)
     #### take only users that are not part of earlier 
-    crowd_rest = crowd_all[merged_crowd['_merge'] == 'left_only']
+    #crowd_rest = crowd_all[merged_crowd['_merge'] == 'left_only']
 
     df_crowd, alt_names = prepare_crowd_data(crowd_all, alternative_map)
     df_crowd = remap_answers(df_crowd)

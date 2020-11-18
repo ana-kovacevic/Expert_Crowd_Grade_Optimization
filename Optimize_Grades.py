@@ -15,7 +15,7 @@ from scipy.optimize import linprog
 import warnings
 warnings.filterwarnings('ignore')
 
-from Data_Prepare import get_aggregated_data
+#from Data_Prepare import get_aggregated_data
 
 
 #grades = [1.0, 2.0, 3.0, 4.0, 5.0]
@@ -188,8 +188,17 @@ def objective_function_grades_absolute(expert_votes, crowd_votes, lambda_expert,
 def nash_bargaining_solution(expert_satisfaction, crowd_satisfaction):
     lambda_importance = crowd_satisfaction/(crowd_satisfaction + expert_satisfaction)
 #     lambda_importance = 1/(1 + expert_satisfaction)
-
     return lambda_importance
+
+def nash_solution(variables, expert_votes, crowd_votes):
+    expert_side = np.log(variables[0]) + np.log(5 - np.mean(np.abs(expert_votes - variables[2])))
+    crowd_side = np.log(variables[1]) + np.log(5 - np.mean(np.abs(crowd_votes - variables[2])))
+    
+    return -1*(expert_side + crowd_side)
+
+def lambda_const(variables):
+    return variables[0] + variables[1] - 1
+
 
 def kalai_smorodinsky_solution(expert_s_1, crowd_s_1, expert_s_2, crowd_s_2):
     max_expert = np.max([expert_s_1, expert_s_2])
@@ -304,6 +313,7 @@ def optimize_grade_absolute_dist(df_alt_votes, expert_ids, crowd_ids, alphas):
        
 
 # optimal_grades = result_optimization_abs
+
 def calculate_satisfaction_absolute(df_alt_votes, optimal_grades, expert_ids, crowd_ids): 
     
     res_data = optimal_grades.copy()
@@ -320,8 +330,10 @@ def calculate_satisfaction_absolute(df_alt_votes, optimal_grades, expert_ids, cr
         5 - np.abs(np.array(data[crowd_ids]) - np.array(data['optimal_grade']).reshape(data.shape[0], 1) )
         , axis = 1)
 
-
-    res_data = data[['alternative_id', 'alpha', 'optimal_grade', 'expert_sat', 'crowd_sat']]
+    if 'alpha' in list(data.columns):
+        res_data = data[['alternative_id', 'alpha', 'optimal_grade', 'expert_sat', 'crowd_sat']]
+    else:
+        res_data = data[['alternative_id', 'optimal_grade', 'expert_sat', 'crowd_sat']]
     #data[['alternative_id', 'alpha', 'optimal_grade', 'fun_val', 'expert_sat', 'crowd_sat']]
     
     return res_data

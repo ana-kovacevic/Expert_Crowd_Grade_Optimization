@@ -16,6 +16,7 @@ sns.set_theme()
 from Load_credibility_data import read_data_credibility
 
 from Data_Prepare import crete_voter_map
+from Data_Prepare import calculate_crowd_exper_diff
 
 from PrepareData_SupervisedApproach import aggregate_statistics_per_alternatives
 
@@ -23,8 +24,8 @@ from PrepareData_SupervisedApproach import aggregate_statistics_per_alternatives
 '''
     Read Data
 '''
-alternative_map, alt_names, df_crowd, df_expert, df_crowd_2020 = read_data_credibility()
-voter_map = crete_voter_map([df_expert, df_crowd])
+# alternative_map, alt_names, df_crowd, df_expert, _ , df_science, df_journal = read_data_credibility()
+# voter_map = crete_voter_map([df_expert, df_crowd])
 
 
 ##### check if crowd have changed their opinion on last question
@@ -74,7 +75,7 @@ def plot_overall_variability_bar(df_expert, df_crowd, voter_map):
 # Show graphic
     plt.show()
 
-plot_overall_variability_bar(df_expert, df_crowd_2020, voter_map)
+#plot_overall_variability_bar(df_expert, df_crowd_2020, voter_map)
 
 def plot_expert_group_variability_bar(df_expert, df_crowd, voter_map):
     
@@ -127,7 +128,7 @@ def plot_expert_group_variability_bar(df_expert, df_crowd, voter_map):
     plt.tight_layout()
     plt.show()
 
-plot_expert_group_variability_bar(df_expert, df_crowd_2020)
+#plot_expert_group_variability_bar(df_expert, df_crowd_2020)
 
 #df_crowd = df_crowd_2020
 def plot_variability_scatter(df_expert, df_crowd, voter_map, group_by = 'voter_type', measure = 'std_group_rate', split_char = '-'):
@@ -182,6 +183,29 @@ def plot_variability_scatter(df_expert, df_crowd, voter_map, group_by = 'voter_t
     ax.legend()
 
 
+
+
+def plot_medians(title_str1, df_crowd, df_selected_expert, df_alt_votes, crowd_ids, title_str2):
+    plot_df = pd.DataFrame(columns=['crowd_count', 'diff_expert_median', 'estimated_crowd'])
+    for i in range(1, 80):
+        df_crowd_sample = df_crowd.groupby('alternative_id', group_keys = False).apply(lambda x: x.sample(min(len(x),i)))
+        diff = calculate_crowd_exper_diff(df_crowd_sample, df_selected_expert, df_alt_votes, crowd_ids)
+        row = (i,) + diff
+        plot_df = plot_df.append(pd.Series(list(row), index=plot_df.columns ), ignore_index= True)
+        plot_df['crowd_count'] = plot_df['crowd_count'].astype('int')
+   
+    plt.figure(figsize=(30,10))
+    sns.barplot(x=plot_df['crowd_count'], y = plot_df['diff_expert_median'])
+    plt.axhline(y = plot_df['estimated_crowd'].unique())
+    #plt.figure.suptitle(title_str1 + title_str2, fontsize=20)
+    plt.title(title_str1 + title_str2)
+    #plt.ylim(0.2, 1.1)
+    plt.show()
+
+
+
+
+'''
 data = result_data[result_data['alpha']== 0.5]
 
     #data = pd.merge(data, cd, how = 'inner', on = 'vote')
@@ -212,3 +236,4 @@ plt.xticks(y_pos, bars)
  
 # Show graphic
 plt.show()
+'''

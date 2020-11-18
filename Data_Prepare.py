@@ -74,8 +74,22 @@ def crete_alternatives_map(data, alternative_name = 'media_url'):
 
 def crete_voter_map(dfs, voter_name = 'voter'):
     '''
-    This function takes the list of dataframe and create unique map of all users
+      This function takes the list of dataframe and create unique map of all users
+
+    Parameters
+    ----------
+    dfs : TYPE
+        DESCRIPTION.
+    voter_name : TYPE, optional
+        DESCRIPTION. The default is 'voter'.
+
+    Returns
+    -------
+    voter_map : TYPE
+        DESCRIPTION.
+
     '''
+  
     
     data_copy = pd.concat(dfs, ignore_index = True)
     
@@ -175,13 +189,25 @@ def remap_answers(df_crowd):
 def prepare_expert_data(data_folder, alternative_map):
     """
     The procedure is used to read and prepare experts answers
-    Return:
-        Expert data set in transactional form
-    Input:
-        folder path: String, the path where all expert files are stored
-        alternative map: data frame, alternative map created using crowd data to assign same ids to URL media
 
-    """
+    Parameters
+    ----------
+    data_folder : String
+        The path where all expert files are stored.
+    alternative_map : pandas dataframe, 
+        Alternative map created using crowd data to assign same ids to URL media.
+
+    Returns
+    -------
+    df_expert : pandas df
+        Expert data set in transactional form
+    df_science : TYPE
+        DESCRIPTION.
+    df_journal : TYPE
+        DESCRIPTION.
+
+    """  
+
     expert_cols = ['ID', 'URL', 'Score', 'voter']
     
     science = pd.DataFrame()
@@ -230,7 +256,7 @@ def prepare_expert_data(data_folder, alternative_map):
 # df_trans = df_crowd_2020
 # alternative_space = list(voters_lookup['voter_id'])  alt_names  
 
-def get_aggregated_data(df_trans, alternative_space, index_column = 'voter', column= 'alternative_id', value = 'rate'):
+def get_aggregated_data(df_trans, column_order, index_column = 'voter', column= 'alternative_id', value = 'rate'):
     """
     Returns:
         Aggregated DF: Sparse Data Frame where every column represents alternatives and every row is a voter. 
@@ -244,7 +270,7 @@ def get_aggregated_data(df_trans, alternative_space, index_column = 'voter', col
     #df_trans = pd.merge(df_trans, voter_map, how = "left", on = "voter")
     #df_trans = df_trans.drop('voter', axis = 1)
     #df_trans = df_trans.rename(columns={'voter_id' : 'voter'})
-    vote_data = df_trans.pivot(index = index_column, columns = column, values = value).reindex(alternative_space, axis=1)
+    vote_data = df_trans.pivot(index = index_column, columns = column, values = value).reindex(column_order, axis=1)
     #vote_data = vote_data.fillna(0)
     #vote_sample = vote_data.iloc[0:6, 0:5]
     
@@ -333,4 +359,33 @@ def get_user_ids_from_mapping(data_lookup, string_lookup, name_col = 'voter', id
     ids = data_filterd.apply(lambda x: x[id_col] , axis = 1) 
     ids = ids.tolist()
     return ids
+
+
+def calculate_crowd_exper_diff(df_crowd_sample, df_selected_expert, df_alt_votes, crowd_ids):    
+    
+    crowd_original_medians = df_crowd_sample.groupby('alternative_id').agg('median').reset_index()
+    crowd_original_medians = crowd_original_medians.rename(columns = { 'rate':'crowd_original_median'})
+    
+    
+    expert_original_medians = df_selected_expert.groupby('alternative_id').agg('median').reset_index()
+    expert_original_medians = expert_original_medians.rename(columns = {'rate':'expert_original_median'})
+    
+    original_medians = pd.merge(expert_original_medians, crowd_original_medians, how = 'inner', on = 'alternative_id')
+    
+    
+    round_medians = df_alt_votes.copy().round()
+    #round_medians['crowd_median'] = df_alt_votes.round()[crowd_ids].apply(lambda x: np.median(x), axis = 1)
+    round_medians['crowd_median'] = round_medians[crowd_ids].apply(lambda x: np.median(x), axis = 1)
+    round_medians = round_medians[['alternative_id', 'crowd_median']]
+    
+    original_all = pd.merge(original_medians, round_medians, how = 'inner', on = 'alternative_id')
+    
+    original_all['original_diff'] = np.abs(np.array(original_all['expert_original_median']) - np.array(original_all['crowd_original_median']))
+    original_all['estimated_diff'] = np.abs(np.array(original_all['expert_original_median']) - np.array(original_all['crowd_median']))
+    
+    orig_diff = np.mean(np.array(original_all['original_diff']))
+    estm_diff = np.mean(np.array(original_all['estimated_diff']))
+    
+    return orig_diff, estm_diff
+
 

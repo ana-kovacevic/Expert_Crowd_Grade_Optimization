@@ -7,32 +7,53 @@ Created on Tue Nov 10 12:50:22 2020
 import pandas as pd
 import numpy as np
 
+from scipy.optimize import minimize #,optimize
 #from scipy.stats import mode
 
 from Optimize_Grades import expectation_maximization_nash
 from Optimize_Grades import maximization_kalai_smorodinsky
+from Optimize_Grades import nash_solution
+from Optimize_Grades import calculate_satisfaction_absolute
 
-def nash_results(df_alt_votes, optimal_grades , crowd_ids, expert_ids, lambda_expert = 0.5):
 
-    res_nash = pd.DataFrame(columns=(['alternative_id', 'lambda_exp', 'vote', 'expert_sat', 'crowd_sat', 'area']))  
+def nash_results(df_alt_votes , crowd_ids, expert_ids, cons, lambda_expert = 0.5):
+
+    #res_nash = pd.DataFrame(columns=(['alternative_id', 'lambda_exp', 'vote', 'expert_sat', 'crowd_sat', 'area']))
+    res_nash = pd.DataFrame(columns=(['alternative_id', 'lambda_exp', 'optimal_grade']))
     #res_nash[['lambda_exp', 'vote', 'area']] = np.nan
-    #df_alt_votes = df_alt_votes.iloc[0:5,:]
-    
+   
+    w_lambda_1 = lambda_expert
+    w_lambda_2 = 1 - lambda_expert
+    w_vote = 0
+    w = [w_lambda_1, w_lambda_2, w_vote]
+    # i = 0
     for i in list(df_alt_votes.alternative_id.unique()):
-        res = optimal_grades[(optimal_grades['alternative_id'] == i) & (optimal_grades['alpha'] == lambda_expert)]
+        #res = optimal_grades[(optimal_grades['alternative_id'] == i) & (optimal_grades['alpha'] == lambda_expert)]
         votes = df_alt_votes[df_alt_votes['alternative_id'] == i]
+        v_expert = np.array(votes[expert_ids])[0]
+        v_crowd = np.array(votes[crowd_ids])[0]
         
-        print('Alternative to optimize: ', str(i))
+        if i%100==0:
+            print('Alternative to optimize: ', str(i))
     
-        n =  expectation_maximization_nash(res, 
-                                          lambda_expert, 
-                                          votes, 
-                                          crowd_ids, expert_ids, 
-                                          num_iter = 100, verbose = False)
+        # n =  expectation_maximization_nash(res, lambda_expert, votes, crowd_ids, expert_ids, num_iter = 100, verbose = False)
+        n = minimize(nash_solution, w, constraints= cons,
+                     args = (v_expert, v_crowd), method = 'SLSQP')
+        n = n.x[[0,2]]
+        n = (i,) + tuple(n)
         
-        n = (i,) + n
         res_nash = res_nash.append(pd.Series(list(n), index=res_nash.columns ), ignore_index=True)
     
+    res_nash = calculate_satisfaction_absolute(df_alt_votes, res_nash, expert_ids, crowd_ids)
+    
+    res_nash['satisfaction_area'] = res_nash['expert_sat'] * res_nash['crowd_sat']
+    res_nash['satisfaction_sum'] = res_nash['expert_sat'] + res_nash['crowd_sat']
+    res_nash['crowd_mean']=df_alt_votes[crowd_ids].apply(lambda x: np.mean(x), axis =1)
+    res_nash['expert_mean']=df_alt_votes[expert_ids].apply(lambda x: np.mean(x), axis =1)
+    res_nash['mean_diff'] = res_nash['expert_mean'] - res_nash['crowd_mean']
+    res_nash['crowd_std']=df_alt_votes[crowd_ids].apply(lambda x: np.std(x), axis =1)
+    res_nash['expert_std']=df_alt_votes[expert_ids].apply(lambda x: np.std(x), axis =1)
+    res_nash['diff_sat'] =  res_nash['expert_sat'] - res_nash['crowd_sat']
     #res_nash.to_csv('results/results_nash.csv')   
     return res_nash
 ###### kalai
@@ -67,6 +88,26 @@ def kalai_results(df_alt_votes, optimal_grades , crowd_ids, expert_ids):
 
 def calculate_baseline_stats_satisfaction(df_alt_votes, crowd_ids, 
                                           expert_ids ,stats = ['np.mean', 'np.median', 'mode']):
+    """
+    
+
+    Parameters
+    ----------
+    df_alt_votes : TYPE
+        DESCRIPTION.
+    crowd_ids : TYPE
+        DESCRIPTION.
+    expert_ids : TYPE
+        DESCRIPTION.
+    stats : TYPE, optional
+        DESCRIPTION. The default is ['np.mean', 'np.median', 'mode'].
+
+    Returns
+    -------
+    df_baseline : TYPE
+        DESCRIPTION.
+
+    """
     
     data = df_alt_votes.copy() #pd.DataFrame(df_alt_votes['alternative_id'], columns = ['alternative_id'])
     
@@ -219,3 +260,52 @@ def relative_overall_satisfaction(res_kalai, res_baseline, max_satisfaction):
     res_relative_sat.reset_index(inplace = True)
     
     return res_relative_sat
+
+def add_median_variation(df_votes, n_repetitions, n_samples):
+    '''
+    
+    Parameters
+    ----------
+    df_votes : pandas data frame
+        Dataframe with grades of voters, where rows are alternatives and columns are voters.
+    n_repetitions : int
+        Number that represents experiment repetition.
+    n_samples : int
+        Number that represents thse size of sample.
+
+    Returns
+    -------
+    res : pandas dataframe
+        Standard deviation for each alternative (rows) and for different sample sizes (columns).
+
+    '''
+    sel = df_votes.apply(lambda x: np.random.choice(x, (n_repetitions, n_samples)), axis = 1)
+    sel2 = sel.apply(lambda x: np.median(x, axis = 1))
+    res =sel2.apply(lambda x: np.std(x))
+    return res
+
+'''
+def nash_results_old(df_alt_votes, optimal_grades , crowd_ids, expert_ids, lambda_expert = 0.5):
+
+    res_nash = pd.DataFrame(columns=(['alternative_id', 'lambda_exp', 'vote', 'expert_sat', 'crowd_sat', 'area']))  
+    #res_nash[['lambda_exp', 'vote', 'area']] = np.nan
+    #df_alt_votes = df_alt_votes.iloc[0:5,:]
+    
+    for i in list(df_alt_votes.alternative_id.unique()):
+        res = optimal_grades[(optimal_grades['alternative_id'] == i) & (optimal_grades['alpha'] == lambda_expert)]
+        votes = df_alt_votes[df_alt_votes['alternative_id'] == i]
+        
+        print('Alternative to optimize: ', str(i))
+    
+        n =  expectation_maximization_nash(res, 
+                                          lambda_expert, 
+                                          votes, 
+                                          crowd_ids, expert_ids, 
+                                          num_iter = 100, verbose = False)
+        
+        n = (i,) + n
+        res_nash = res_nash.append(pd.Series(list(n), index=res_nash.columns ), ignore_index=True)
+    
+    #res_nash.to_csv('results/results_nash.csv')   
+    return res_nash
+'''

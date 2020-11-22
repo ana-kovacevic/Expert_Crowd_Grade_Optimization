@@ -109,9 +109,10 @@ def create_data_for_predicting_differences(df_expert, df_crowd, user_factors, al
     
     return final_data
 
-def create_train_data_for_predicting_rates(df_expert_crowd, user_factors, alt_factors, num_factors, voters_lookup, alts_lookup):
+def create_train_data_for_predicting_rates(df_expert_crowd, user_factors, alt_factors, voters_lookup, alts_lookup):
     
     final_data = df_expert_crowd.copy()
+    num_factors = user_factors.shape[1]
     
     user_factors_df = pd.DataFrame(user_factors)
     col_users = ['UF' + str(x) for x in range(1,num_factors+1)]
@@ -127,7 +128,7 @@ def create_train_data_for_predicting_rates(df_expert_crowd, user_factors, alt_fa
 
     #np.sum(alts_lookup['alternative_id'] != alts_lookup['alternative'])
     
-    final_data =  pd.merge(df_expert_crowd, voters_lookup, how='inner', on='voter', #left_on=None, right_on=None,
+    final_data =  pd.merge(df_expert_crowd, voters_lookup, how='inner', on='voter_id', #left_on=None, right_on=None,
          left_index=False, right_index=False,suffixes=('_map', '_lookup'), #sort=True,  # copy=True, indicator=False,
          validate=None)
 
@@ -185,10 +186,10 @@ def prepare_data_for_grade_optimization(all_pred, test_combinations, df_expert, 
     test_pred_expert = test_combinations[test_combinations['voter_id'].isin(expert_ids)]
     test_pred_crowd = test_combinations[test_combinations['voter_id'].isin(crowd_ids)]
 
-    train_crowd = pd.merge(df_crowd, voters_lookup, on = 'voter')[['voter_id', 'alternative_id', 'rate']]
+    train_crowd = pd.merge(df_crowd, voters_lookup, on = 'voter_id')[['voter_id', 'alternative_id', 'rate']]
     #train_crowd = train_crowd.rename(columns=({ 'vote' : 'alternative_id'}))
     
-    train_expert = pd.merge(df_expert, voters_lookup, on = 'voter')[['voter_id', 'alternative_id', 'rate']]
+    train_expert = pd.merge(df_expert, voters_lookup, on = 'voter_id')[['voter_id', 'alternative_id', 'rate']]
     #train_expert = train_expert.rename(columns=({ 'vote' : 'alternative_id'}))
         
     

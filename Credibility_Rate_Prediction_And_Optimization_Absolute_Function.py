@@ -56,6 +56,7 @@ from Evaluate_and_Results import nash_results
 from Evaluate_and_Results import kalai_results
 from Evaluate_and_Results import calculate_baseline_stats_satisfaction
 from Evaluate_and_Results import avg_satisfaction_by_group
+from Evaluate_and_Results import relative_detail_satisfaction_nash
 from Evaluate_and_Results import relative_detail_satisfaction_kalai
 from Evaluate_and_Results import relative_detail_satisfaction_baseline
 from Evaluate_and_Results import relative_overall_satisfaction
@@ -68,8 +69,8 @@ alternative_map, alt_names, df_crowd, _, _ , df_science, df_journal = read_data_
 df_science['rate']= df_science['rate'].astype('float')
 df_journal['rate']= df_journal['rate'].astype('float')
 
-df_selected_expert = df_journal #df_science
-expert_type = 'journal'
+df_selected_expert = df_science # df_journal
+expert_type = 'science'
 
 alts_dict = dict(zip(alternative_map['alternative_id'] , alternative_map['alternative_name']))
 #### create mapping of all avaible users
@@ -136,7 +137,7 @@ expert_agg = pd.merge(voters_lookup,  expert_agg, how = 'inner', on = 'voter').d
 start = time.time()
 best_params_als = find_best_parms_for_ALS(latent_factors, regularizations, iter_array, train, test)
 end = time.time()
-print(end - start)
+print('Total time to find embeddings (in min): ', str((end - start)/60))
 print(best_params_als)
 
 model_als = best_params_als['model']
@@ -154,6 +155,9 @@ pd.DataFrame(user_factors).to_csv('results/user_factors_' + expert_type + '.csv'
 pd.DataFrame(alt_factors).to_csv('results/alts_factors_' + expert_type + '.csv')
 #r = user_factors.dot(alt_factors.T)
 #dense_all_agg = pd.DataFrame(r, columns = alt_names)  
+#user_factors =np.array( pd.read_csv('results/user_factors_' + expert_type + '.csv').drop('Unnamed: 0', axis = 1))
+#alt_factors = np.array( pd.read_csv('results/alts_factors_' + expert_type + '.csv').drop('Unnamed: 0', axis = 1))
+
 
 #### extract expert and crowd ids for similarity
 expert_ids = get_user_ids_from_mapping(voters_lookup, 'expert')
@@ -163,7 +167,7 @@ crowd_ids = get_user_ids_from_mapping(voters_lookup, 'crowd')
 """
 Create data for supervised learning
 """
-final_train_data = create_train_data_for_predicting_rates(df_expert_crowd, user_factors, alt_factors, num_factors, voters_lookup, alts_lookup)
+final_train_data = create_train_data_for_predicting_rates(df_expert_crowd, user_factors, alt_factors, voters_lookup, alts_lookup)
 #final_train_data = create_train_data_for_predicting_rates(df_crowd, user_factors, alt_factors, num_factors, voters_lookup, alts_lookup)
 non_rated_combinations = create_test_data_for_predicting_rates(final_train_data, user_factors, alt_factors, num_factors, voters_lookup, alts_lookup)
 
@@ -185,7 +189,7 @@ start = time.time()
 all_pred, grids, best_mod = optimize_predictive_model_and_predict(final_train_data, non_rated_combinations, folds = 3)
 all_exp_grades, all_crowd_grades = prepare_data_for_grade_optimization(all_pred, test_combinations, df_selected_expert, df_crowd, voters_lookup, expert_ids, crowd_ids)
 end = time.time()
-print(end - start)
+print('Total time to find embeddings (in min): ', str((end - start)/60))
 
 #_, all_crowd_grades = prepare_data_for_grade_optimization(all_pred, test_combinations, df_selected_expert, df_crowd, voters_lookup, [228,229,230], crowd_ids)
 
@@ -196,9 +200,9 @@ all_crowd_grades.to_csv('results/data_all_crowd_grades_' + expert_type +'.csv')
 #all_crowd_grades.to_csv('results/data_all_crowd_grades_without_experts.csv')
 all_crowd_grades = pd.read_csv('results/data_all_crowd_grades_without_experts.csv').drop('Unnamed: 0', axis = 1)
 ## read predicted grades
-all_crowds_pred_alone = pd.read_csv('results/data_all_crowd_grades_without_experts.csv').drop('Unnamed: 0', axis = 1)
-all_crowds_pred_journal = pd.read_csv('results/data_all_crowd_grades_journal.csv').drop('Unnamed: 0', axis = 1)
-all_crowds_pred_science = pd.read_csv('results/data_all_crowd_grades_science.csv').drop('Unnamed: 0', axis = 1)
+#all_crowds_pred_alone = pd.read_csv('results/data_all_crowd_grades_without_experts.csv').drop('Unnamed: 0', axis = 1)
+#all_crowds_pred_journal = pd.read_csv('results/data_all_crowd_grades_journal.csv').drop('Unnamed: 0', axis = 1)
+#all_crowds_pred_science = pd.read_csv('results/data_all_crowd_grades_science.csv').drop('Unnamed: 0', axis = 1)
 
 '''
 Optimize grade absolute
@@ -230,7 +234,8 @@ result_optm_abs = pd.concat([result_optm_abs0, result_optm_abs1])
 
 result_optm_abs = calculate_satisfaction_absolute(df_alt_votes, result_optm_abs, expert_ids, crowd_ids)
 
-
+del(result_optm_abs0)
+del(result_optm_abs1)
 #result_optm_abs.to_csv('results/absolute_optimization_grades_and_sat.csv')
 
 #expert_satisfaction_fixed = result_optimization_abs['expert_sat'] #np.mean(5 - np.abs(expert_votes - vote_fixed))
@@ -250,34 +255,34 @@ bnds = ((0.01, 0.99), (0.01, 0.99), (1, 5))
 
 res_nash = nash_results(df_alt_votes , crowd_ids, expert_ids, cons, lambda_expert = 0.5)
 
-res_nash = nash_results(df_alt_votes, result_optm_abs , crowd_ids, expert_ids, lambda_expert = 0.5)
+#res_nash = nash_results(df_alt_votes, result_optm_abs , crowd_ids, expert_ids, lambda_expert = 0.5)
 
-res_nash.to_csv('results/results_nash.csv')   
+res_nash.to_csv('results/results_nash' + expert_type + ' .csv')   
 
 ###### kalai
 res_kalai = kalai_results(df_alt_votes, result_optm_abs, crowd_ids, expert_ids)
 
 res_kalai.to_csv('results/results_kalai_' + expert_type + ' .csv')
 
-res_kalai = pd.read_csv('results/results_kalai.csv').drop('Unnamed: 0', axis = 1)
+# res_kalai = pd.read_csv('results/results_kalai.csv').drop('Unnamed: 0', axis = 1)
 
 ####### Baseline methods
 
 res_baseline = calculate_baseline_stats_satisfaction( df_alt_votes, crowd_ids, 
                                           expert_ids ,stats = ['np.mean', 'np.median', 'mode'])
 
-res_all = pd.merge(res_baseline, 
-                   res_kalai.rename(columns= {'vote' : 'kalai_optimal', 'crowd_sat': 'crowd_sat-kalai', 
-                                              'expert_sat' : 'expert_sat-kalai', 'satisfaction_area':'satisfaction_area-kalai',
-                                              'satisfaction_sum':'satisfaction_sum-kalai'}),
-                   on = 'alternative_id')
+# res_all = pd.merge(res_baseline, 
+#                    res_kalai.rename(columns= {'vote' : 'kalai_optimal', 'crowd_sat': 'crowd_sat-kalai', 
+#                                               'expert_sat' : 'expert_sat-kalai', 'satisfaction_area':'satisfaction_area-kalai',
+#                                               'satisfaction_sum':'satisfaction_sum-kalai'}),
+#                    on = 'alternative_id')
 
-res_all[['expert_sat-expert_median', 'expert_sat-kalai']]
+# res_all[['expert_sat-expert_median', 'expert_sat-kalai']]
 
-res_all['expert_sat-expert_median'] - res_all['expert_sat-kalai']
+# res_all['expert_sat-expert_median'] - res_all['expert_sat-kalai']
 
-res_overal_sat = avg_satisfaction_by_group(res_kalai, 'res_nash', res_baseline).reset_index()
-
+res_overal_sat = avg_satisfaction_by_group(res_kalai, res_nash, res_baseline).reset_index()
+res_overal_sat.to_csv('results/results_overall_avg_satisfaction'+ expert_type +'.csv')
 ###### relative satisfaction calculation
 # max_satisfaction = pd.DataFrame()
 # max_satisfaction['alternative_id'] = result_optm_abs['alternative_id'].unique()
@@ -296,17 +301,20 @@ max_satisfaction['max_satisfaction_area'] = max_satisfaction['max_crowd_sat'] * 
 #maxsat_col = [col for col in max_satisfaction.columns if 'sat' in col]
 
 ###### add relative satisfection by each alternative
+res_nash = relative_detail_satisfaction_nash(res_nash, max_satisfaction)
 res_kalai = relative_detail_satisfaction_kalai(res_kalai, max_satisfaction)
 res_baseline = relative_detail_satisfaction_baseline(res_baseline, max_satisfaction)
 
-res_kalai.to_csv('results/results_kalai_scientist.csv')
-res_baseline.to_csv('results/results_baseline_scietist.csv')
+res_nash.to_csv('results/results_nash_' + expert_type +'.csv')
+res_kalai.to_csv('results/results_kalai_' + expert_type +'.csv')
+res_baseline.to_csv('results/results_baseline_'+ expert_type +'.csv')
 
  ## ----------------------------------------------------------------------------
-######### SUMARIZE RESULTS
+######### SUMMARIZE RESULTS
 
-res_relative_sat = relative_overall_satisfaction(res_kalai, res_baseline, max_satisfaction)
+res_relative_sat = relative_overall_satisfaction(res_nash, res_kalai, res_baseline, max_satisfaction)
 
+res_relative_sat.to_csv('results/results_overall_relative_satisfaction'+ expert_type +'.csv')
 # a = pd.merge(res_baseline[['alternative_id','crowd_sat-crowd_median']],
 #          res_kalai[['alternative_id', 'crowd_sat']], on = 'alternative_id')
 

@@ -67,8 +67,8 @@ def crete_alternatives_map(data, alternative_name = 'media_url'):
     
     data_copy['alternative_id'] = data_copy.groupby(alternative_name).ngroup()
     
-    alternative_map = data_copy[['media_url', 'alternative_id']].drop_duplicates().reset_index().drop('index', axis = 1)
-    alternative_map = alternative_map.rename(columns = {'media_url' : 'alternative_name'})
+    alternative_map = data_copy[[alternative_name, 'alternative_id']].drop_duplicates().reset_index().drop('index', axis = 1)
+    alternative_map = alternative_map.rename(columns = {alternative_name : 'alternative_name'})
     
     return alternative_map
 

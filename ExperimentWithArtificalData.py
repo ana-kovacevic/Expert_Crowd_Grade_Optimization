@@ -31,7 +31,6 @@ from Data_Prepare import crete_alternatives_map
 from Optimize_Grades import lambda_const
 from Optimize_Grades import calculate_satisfaction_absolute
 
-from Quick_Data_Exploration import plot_medians
 
 from Evaluate_and_Results import nash_results
 from Evaluate_and_Results import kalai_results
@@ -41,10 +40,6 @@ from Evaluate_and_Results import relative_detail_satisfaction_nash
 from Evaluate_and_Results import relative_detail_satisfaction_kalai
 from Evaluate_and_Results import relative_detail_satisfaction_baseline
 from Evaluate_and_Results import relative_overall_satisfaction
-from Evaluate_and_Results import add_median_variation
-
-
-
 
 #alternative_map, alt_names, df_crowd, _, _ , df_science, df_journal = read_data_credibility()
 
@@ -183,6 +178,53 @@ def experiment_artifical_data(df_expert_crowd):
 df_expert_crowd_extreme= pd.read_csv('results/artifical_data_extreme.csv').drop('Unnamed: 0', axis = 1)
 df_expert_crowd = pd.read_csv('results/artifical_data_example.csv').drop('Unnamed: 0', axis = 1)
 
+data = df_expert_crowd_extreme
+case =  'case_6'
+kal = 10.000
+ns = 6.501
+
+
+def calc_dev(data, case,  kal, ns):
+    
+    case = data[data['case'] == case ][['group', 'votes']]
+
+    exp_votes = np.array(case[case['group'] == 'expert']['votes'] )
+    crd_votes = np.array(case[case['group'] == 'crowd']['votes'] )
+    
+    n_exp =  len(exp_votes)
+    n_crd = len(crd_votes)
+  
+
+
+    # kalai
+    abs_kal_exp = np.abs(exp_votes - kal)
+    abs_kal_exp[abs_kal_exp == 0] = 1
+
+    abs_kal_crd = np.abs(crd_votes - kal)
+    abs_kal_crd[abs_kal_crd == 0] = 1
+
+    kal_exp = np.sum( (exp_votes - kal ) / (abs_kal_exp) )/n_exp
+    kal_crd = np.sum((crd_votes - kal ) / (abs_kal_crd) )/n_crd
+
+    kal_ratio = (kal_exp + kal_crd)
+
+    # nash
+    abs_ns_exp = np.abs(exp_votes - ns)
+    abs_ns_exp[abs_ns_exp == 0] = 1
+
+    abs_ns_crd = np.abs(crd_votes - kal)
+    abs_ns_crd[abs_ns_crd == 0] = 1
+    
+    ns_exp = np.sum((exp_votes - ns ) / (abs_ns_exp))/n_exp
+    ns_crd = np.sum((crd_votes - ns ) / (abs_ns_crd))/n_crd
+
+    ns_ratio = ns_exp + ns_crd
+
+    return kal_ratio, ns_ratio
+
+calc_dev(df_expert_crowd_extreme, 'case_6',  kal = 10.000, ns = 6.501)
+
+
 res_kalai, res_nash, res_baseline, res_overal_sat, res_relative_sat = experiment_artifical_data(df_expert_crowd)
 
 res_kalai_extreme, res_nash_extreme, res_baseline_extreme, res_overal_sat_extreme, res_relative_sat_extreme = experiment_artifical_data(df_expert_crowd_extreme)
@@ -199,8 +241,8 @@ def results_on_artifical_data(res_kalai, res_nash, res_baseline, extreme_flag):
     var_votes = [col for col in res_baseline.columns if 'sat' not in col and 'alternative' not in col and 'rel' not in col]
     var_exp_sat = [col for col in res_baseline.columns if 'expert_sat' in col] # and 'sat' in col ] #and 'alternative' not in col and 'rel' not in col]
     var_crd_sat = [col for col in res_baseline.columns if 'crowd_sat' in col] # and 'sat' in col ] #and 'alternative' not in col and 'rel' not in col]
-    #rel_expert = [col for col in res_baseline.columns if 'rel_expert' in col]
-    #rel_crowd = [col for col in res_baseline.columns if 'rel_crowd' in col]
+    rel_expert = [col for col in res_baseline.columns if 'rel_expert' in col]
+    rel_crowd = [col for col in res_baseline.columns if 'rel_crowd' in col]
 
 
     res_baseline_vote = pd.melt(res_baseline, id_vars='alternative_id', value_vars=var_votes,
@@ -215,10 +257,21 @@ def results_on_artifical_data(res_kalai, res_nash, res_baseline, extreme_flag):
                                    value_vars=var_crd_sat, var_name='method', value_name='crowd_sat')
     
     res_baseline_crd_sat['method'] = res_baseline_crd_sat.apply(lambda x:  x['method'].split('-')[1], axis = 1)
-   
+    
+    res_baseline_rel_exp = pd.melt(res_baseline, id_vars='alternative_id', 
+                                   value_vars=rel_expert, var_name='method', value_name='rel_expert_sat')
+    
+    res_baseline_rel_exp['method'] = res_baseline_rel_exp.apply(lambda x:  x['method'].split('-')[1], axis = 1)
+    
+    res_baseline_rel_crd = pd.melt(res_baseline, id_vars='alternative_id', 
+                                   value_vars=rel_crowd, var_name='method', value_name='rel_crowd_sat')
+    
+    res_baseline_rel_crd['method'] = res_baseline_rel_crd.apply(lambda x:  x['method'].split('-')[1], axis = 1)
     
     res_base = pd.merge(res_baseline_vote, res_baseline_exp_sat, on = ['alternative_id', 'method'])
     res_base = pd.merge(res_base, res_baseline_crd_sat, on = ['alternative_id', 'method'])
+    res_base = pd.merge(res_base, res_baseline_rel_exp, on = ['alternative_id', 'method'])
+    res_base = pd.merge(res_base, res_baseline_rel_crd, on = ['alternative_id', 'method'])
     res_base['lambda_exp'] = np.nan
     res_base['satisfaction_area'] = res_base['expert_sat'] * res_base['crowd_sat']
     res_base['satisfaction_sum'] = res_base['expert_sat'] + res_base['crowd_sat']
@@ -226,7 +279,8 @@ def results_on_artifical_data(res_kalai, res_nash, res_baseline, extreme_flag):
     res_base = pd.merge(alternative_map, res_base, on = 'alternative_id')
     
     
-    cols = ['alternative_name', 'alternative_id', 'lambda_exp', 'vote', 'expert_sat', 'crowd_sat', 'satisfaction_area', 'satisfaction_sum', 'method']
+    cols = ['alternative_name', 'alternative_id', 'lambda_exp', 'vote', 'expert_sat', 'crowd_sat', 
+            'satisfaction_area', 'satisfaction_sum', 'rel_crowd_sat', 'rel_expert_sat', 'method']
     res_kalai = res_kalai[cols]
     res_nash = res_nash[cols]
     res_base = res_base[cols]
@@ -243,7 +297,16 @@ a = results_on_artifical_data(res_kalai, res_nash, res_baseline, 0)
 b = results_on_artifical_data(res_kalai_extreme, res_nash_extreme, res_baseline_extreme, 1)
 
 res_all = pd.concat([a,b])
+
 res_all.to_csv('results/all_methods_results_by_alt.csv')
+
+res_relative_sat['expert/crowd'] = res_relative_sat['expert_sat'] / res_relative_sat['crowd_sat']
+res_relative_sat['crowd/expert'] = res_relative_sat['crowd_sat'] / res_relative_sat['expert_sat']
+
+
+res_relative_sat_extreme['expert/crowd'] = res_relative_sat_extreme['expert_sat'] / res_relative_sat_extreme['crowd_sat']
+res_relative_sat_extreme['crowd/expert'] = res_relative_sat_extreme['crowd_sat'] / res_relative_sat_extreme['expert_sat']
+
 
 '''
 exp_votes = np.array(science_T[['Science-1_expert', 'Science-2_expert', 'Science-3_expert']] )

@@ -25,7 +25,7 @@ import time
 from Load_credibility_data import read_data_credibility
 
 
-from Data_Prepare import crete_voter_map
+#from Data_Prepare import crete_voter_map
 from Data_Prepare import get_aggregated_data
 from Data_Prepare import create_ratings_and_mapping
 from Data_Prepare import train_test_split
@@ -40,14 +40,14 @@ from PrepareData_SupervisedApproach import prepare_data_for_grade_optimization
 
 from Find_Best_Regression_Model import optimize_predictive_model_and_predict
 
-from scipy.optimize import minimize #,optimize
+#from scipy.optimize import minimize #,optimize
 #from Optimize_Grades import objective_function_grades_absolute
 #from Optimize_Grades import optimize_grade_absolute_dist
 from Optimize_Grades import calculate_satisfaction_absolute
 #from Optimize_Grades import nash_bargaining_solution
 #from Optimize_Grades import expectation_maximization_nash
 #from Optimize_Grades import maximization_kalai_smorodinsky
-from Optimize_Grades import nash_solution
+#from Optimize_Grades import nash_solution
 from Optimize_Grades import lambda_const
 
 from Quick_Data_Exploration import plot_medians
@@ -69,8 +69,8 @@ alternative_map, alt_names, df_crowd, _, _ , df_science, df_journal = read_data_
 df_science['rate']= df_science['rate'].astype('float')
 df_journal['rate']= df_journal['rate'].astype('float')
 
-df_selected_expert = df_science # df_journal
-expert_type = 'science'
+df_selected_expert =  df_journal #df_science #
+expert_type = 'journal'
 
 alts_dict = dict(zip(alternative_map['alternative_id'] , alternative_map['alternative_name']))
 #### create mapping of all avaible users
@@ -99,6 +99,7 @@ regularizations.sort()
 iter_array = [10, 50, 100, 150] #[1, 2, 5, 10, 25, 50, 100]
 
 alphas = [0.0, 0.5, 1.0] #[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+max_grade = 5
 #b = (1,5)    
 #bnds = [b]   
 #x0 = 1.0
@@ -137,8 +138,15 @@ expert_agg = pd.merge(voters_lookup,  expert_agg, how = 'inner', on = 'voter').d
 start = time.time()
 best_params_als = find_best_parms_for_ALS(latent_factors, regularizations, iter_array, train, test)
 end = time.time()
-print('Total time to find embeddings (in min): ', str((end - start)/60))
+print('Total time to find embeddings (in min): ', str((end - start)/60)) ### 26.766 min 
 print(best_params_als)
+
+import json
+best_params_als.pop('model', None)
+with open('results/best_params_als_'+ expert_type + '.json', 'w') as fp:
+     json.dump(best_params_als, fp)
+
+
 
 model_als = best_params_als['model']
 num_factors = best_params_als['n_factors']
@@ -169,7 +177,7 @@ Create data for supervised learning
 """
 final_train_data = create_train_data_for_predicting_rates(df_expert_crowd, user_factors, alt_factors, voters_lookup, alts_lookup)
 #final_train_data = create_train_data_for_predicting_rates(df_crowd, user_factors, alt_factors, num_factors, voters_lookup, alts_lookup)
-non_rated_combinations = create_test_data_for_predicting_rates(final_train_data, user_factors, alt_factors, num_factors, voters_lookup, alts_lookup)
+non_rated_combinations = create_test_data_for_predicting_rates(final_train_data, user_factors, alt_factors, voters_lookup, alts_lookup)
 
 test_combinations = non_rated_combinations[[ 'voter_id', 'alternative_id']]
 
@@ -189,16 +197,17 @@ start = time.time()
 all_pred, grids, best_mod = optimize_predictive_model_and_predict(final_train_data, non_rated_combinations, folds = 3)
 all_exp_grades, all_crowd_grades = prepare_data_for_grade_optimization(all_pred, test_combinations, df_selected_expert, df_crowd, voters_lookup, expert_ids, crowd_ids)
 end = time.time()
-print('Total time to find embeddings (in min): ', str((end - start)/60))
+print('Total time to find embeddings (in min): ', str((end - start)/60)) ###204.82
 
 #_, all_crowd_grades = prepare_data_for_grade_optimization(all_pred, test_combinations, df_selected_expert, df_crowd, voters_lookup, [228,229,230], crowd_ids)
-
+#all_exp_grades = pd.read_csv('results/data_all_ ' + expert_type +'_expert_grades.csv').drop('Unnamed: 0', axis = 1)
+#all_crowd_grades = pd.read_csv('results/data_all_' + expert_type +'_crowd_grades.csv').drop('Unnamed: 0', axis = 1)
 #
 all_exp_grades.to_csv('results/data_all_ ' + expert_type +'_expert_grades.csv')
-all_crowd_grades.to_csv('results/data_all_crowd_grades_' + expert_type +'.csv')
+all_crowd_grades.to_csv('results/data_all_' + expert_type +'_crowd_grades.csv')
 
 #all_crowd_grades.to_csv('results/data_all_crowd_grades_without_experts.csv')
-all_crowd_grades = pd.read_csv('results/data_all_crowd_grades_without_experts.csv').drop('Unnamed: 0', axis = 1)
+#all_crowd_grades = pd.read_csv('results/data_all_crowd_grades_without_experts.csv').drop('Unnamed: 0', axis = 1)
 ## read predicted grades
 #all_crowds_pred_alone = pd.read_csv('results/data_all_crowd_grades_without_experts.csv').drop('Unnamed: 0', axis = 1)
 #all_crowds_pred_journal = pd.read_csv('results/data_all_crowd_grades_journal.csv').drop('Unnamed: 0', axis = 1)
@@ -232,7 +241,7 @@ result_optm_abs1['alpha'] = 1.0
 
 result_optm_abs = pd.concat([result_optm_abs0, result_optm_abs1])
 
-result_optm_abs = calculate_satisfaction_absolute(df_alt_votes, result_optm_abs, expert_ids, crowd_ids)
+result_optm_abs = calculate_satisfaction_absolute(df_alt_votes, result_optm_abs, max_grade, expert_ids, crowd_ids)
 
 del(result_optm_abs0)
 del(result_optm_abs1)
@@ -253,14 +262,14 @@ cons = [{'type':'eq', 'fun': lambda_const}]
 bnds = ((0.01, 0.99), (0.01, 0.99), (1, 5))
 
 
-res_nash = nash_results(df_alt_votes , crowd_ids, expert_ids, cons, lambda_expert = 0.5)
+res_nash = nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bnds, lambda_expert = 0.5)
 
 #res_nash = nash_results(df_alt_votes, result_optm_abs , crowd_ids, expert_ids, lambda_expert = 0.5)
 
 res_nash.to_csv('results/results_nash' + expert_type + ' .csv')   
 
 ###### kalai
-res_kalai = kalai_results(df_alt_votes, result_optm_abs, crowd_ids, expert_ids)
+res_kalai = kalai_results(df_alt_votes, result_optm_abs,max_grade, crowd_ids, expert_ids)
 
 res_kalai.to_csv('results/results_kalai_' + expert_type + ' .csv')
 
@@ -268,21 +277,11 @@ res_kalai.to_csv('results/results_kalai_' + expert_type + ' .csv')
 
 ####### Baseline methods
 
-res_baseline = calculate_baseline_stats_satisfaction( df_alt_votes, crowd_ids, 
+res_baseline = calculate_baseline_stats_satisfaction( df_alt_votes, max_grade, crowd_ids, 
                                           expert_ids ,stats = ['np.mean', 'np.median', 'mode'])
 
-# res_all = pd.merge(res_baseline, 
-#                    res_kalai.rename(columns= {'vote' : 'kalai_optimal', 'crowd_sat': 'crowd_sat-kalai', 
-#                                               'expert_sat' : 'expert_sat-kalai', 'satisfaction_area':'satisfaction_area-kalai',
-#                                               'satisfaction_sum':'satisfaction_sum-kalai'}),
-#                    on = 'alternative_id')
-
-# res_all[['expert_sat-expert_median', 'expert_sat-kalai']]
-
-# res_all['expert_sat-expert_median'] - res_all['expert_sat-kalai']
-
 res_overal_sat = avg_satisfaction_by_group(res_kalai, res_nash, res_baseline).reset_index()
-res_overal_sat.to_csv('results/results_overall_avg_satisfaction'+ expert_type +'.csv')
+res_overal_sat.to_csv('results/results_overall_avg_satisfaction_'+ expert_type +'.csv')
 ###### relative satisfaction calculation
 # max_satisfaction = pd.DataFrame()
 # max_satisfaction['alternative_id'] = result_optm_abs['alternative_id'].unique()
@@ -292,10 +291,13 @@ max_satisfaction = max_satisfaction.rename(columns = {'crowd_sat':'max_crowd_sat
 max_satisfaction['max_satisfaction_sum'] = max_satisfaction['max_crowd_sat'] + max_satisfaction['max_expert_sat']
 max_satisfaction['max_satisfaction_area'] = max_satisfaction['max_crowd_sat'] * max_satisfaction['max_expert_sat']
 
-# max_satisfaction['max_crowd_sat'] = result_optm_abs[result_optm_abs['alpha'] == 0.0]['crowd_sat'].reset_index().drop('index', axis = 1)
-# max_satisfaction['max_expert_sat'] = result_optm_abs[result_optm_abs['alpha'] == 1.0]['expert_sat'].reset_index().drop('index', axis = 1)
-# max_satisfaction['max_satisfaction'] = max_satisfaction['max_crowd_sat'] + max_satisfaction['max_expert_sat']
 
+min_satisfaction = result_optm_abs[['alternative_id', 'crowd_sat', 'expert_sat']].groupby(by='alternative_id' ).agg('min').reset_index()
+min_satisfaction = min_satisfaction.rename(columns = {'crowd_sat':'min_crowd_sat', 'expert_sat' : 'min_expert_sat'})
+min_satisfaction['min_satisfaction_sum'] = min_satisfaction['min_crowd_sat'] + min_satisfaction['min_expert_sat']
+min_satisfaction['min_satisfaction_area'] = min_satisfaction['min_crowd_sat'] * min_satisfaction['min_expert_sat']
+    
+ref_satisfaction = pd.merge(max_satisfaction, min_satisfaction, on = 'alternative_id')
 
 #sat_col = [col for col in res_kalai.columns if 'sat' in col and 'diff' not in col]
 #maxsat_col = [col for col in max_satisfaction.columns if 'sat' in col]
@@ -305,6 +307,16 @@ res_nash = relative_detail_satisfaction_nash(res_nash, max_satisfaction)
 res_kalai = relative_detail_satisfaction_kalai(res_kalai, max_satisfaction)
 res_baseline = relative_detail_satisfaction_baseline(res_baseline, max_satisfaction)
 
+res_nash['gain_ratio'] = pd.merge(ref_satisfaction, res_nash, on = 'alternative_id').apply( 
+        lambda x: np.abs( ( ( x['lambda_exp']*x['max_expert_sat'] + (1 - x['lambda_exp']) * x['min_expert_sat'])/x['max_expert_sat']) 
+                    - ((x['lambda_exp']*x['min_crowd_sat'] + (1 - x['lambda_exp']) * x['max_crowd_sat'])/x['max_crowd_sat']))
+        , axis = 1)
+    
+res_kalai['gain_ratio'] = pd.merge(ref_satisfaction, res_kalai, on = 'alternative_id').apply( 
+    lambda x: np.abs(( ( x['lambda_exp']*x['max_expert_sat'] + (1 - x['lambda_exp']) * x['min_expert_sat'])/x['max_expert_sat']) 
+                - ((x['lambda_exp']*x['min_crowd_sat'] + (1 - x['lambda_exp']) * x['max_crowd_sat'])/x['max_crowd_sat']))
+    , axis = 1)
+
 res_nash.to_csv('results/results_nash_' + expert_type +'.csv')
 res_kalai.to_csv('results/results_kalai_' + expert_type +'.csv')
 res_baseline.to_csv('results/results_baseline_'+ expert_type +'.csv')
@@ -312,9 +324,15 @@ res_baseline.to_csv('results/results_baseline_'+ expert_type +'.csv')
  ## ----------------------------------------------------------------------------
 ######### SUMMARIZE RESULTS
 
-res_relative_sat = relative_overall_satisfaction(res_nash, res_kalai, res_baseline, max_satisfaction)
+res_relative_sat = relative_overall_satisfaction(res_nash, res_kalai, res_baseline, ref_satisfaction)
+res_relative_sat = res_relative_sat.rename(columns = ({'crowd_sat': 'rel-crowd_sat', 'expert_sat':'rel-expert_sat', 
+                                                       'satisfaction_area' : 'rel-satisfaction_area',
+                                                       'satisfaction_sum': 'rel-satisfaction_sum'}))
 
-res_relative_sat.to_csv('results/results_overall_relative_satisfaction'+ expert_type +'.csv')
+
+all_sum_res = pd.merge(res_relative_sat, res_overal_sat, on = 'method')
+
+all_sum_res.to_csv('results/results_overall_relative_'+ expert_type +'.csv')
 # a = pd.merge(res_baseline[['alternative_id','crowd_sat-crowd_median']],
 #          res_kalai[['alternative_id', 'crowd_sat']], on = 'alternative_id')
 
@@ -322,14 +340,15 @@ res_relative_sat.to_csv('results/results_overall_relative_satisfaction'+ expert_
     
 #df_crowd_sample = df_crowd.groupby('vote', group_keys = False).apply(lambda x: x.sample(min(len(x),3)))
 
+##################################### Plots
 
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-df_votes_crowd_alone = get_aggregated_data(all_crowds_pred_alone , voters_lookup['voter_id'], index_column = 'alternative_id', column= 'voter_id', value = 'rate')
-df_votes_crowd_journal = get_aggregated_data(all_crowds_pred_journal , voters_lookup['voter_id'], index_column = 'alternative_id', column= 'voter_id', value = 'rate')
-df_votes_crowd_science = get_aggregated_data(all_crowds_pred_science , voters_lookup['voter_id'], index_column = 'alternative_id', column= 'voter_id', value = 'rate')
+#df_votes_crowd_alone = get_aggregated_data(all_crowds_pred_alone , voters_lookup['voter_id'], index_column = 'alternative_id', column= 'voter_id', value = 'rate')
+#df_votes_crowd_journal = get_aggregated_data(all_crowds_pred_journal , voters_lookup['voter_id'], index_column = 'alternative_id', column= 'voter_id', value = 'rate')
+#df_votes_crowd_science = get_aggregated_data(all_crowds_pred_science , voters_lookup['voter_id'], index_column = 'alternative_id', column= 'voter_id', value = 'rate')
 
 journal_T = df_journal.pivot(index = 'alternative_id', columns = 'voter', values = 'rate').groupby('alternative_id').sum().reset_index()
 journal_T['median'] = journal_T[['Journalism-1_expert', 'Journalism-2_expert',  'Journalism-3_expert']].apply(lambda x: np.median(x), axis = 1)

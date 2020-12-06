@@ -144,8 +144,9 @@ def create_train_data_for_predicting_rates(df_expert_crowd, user_factors, alt_fa
 
     return final_data 
 
-def create_test_data_for_predicting_rates(final_data, user_factors, alt_factors, num_factors, voters_lookup, alts_lookup):
+def create_test_data_for_predicting_rates(final_data, user_factors, alt_factors, voters_lookup, alts_lookup):
     
+    num_factors = user_factors.shape[1]
     user_factors_df = pd.DataFrame(user_factors)
     col_users = ['UF' + str(x) for x in range(1, num_factors+1)]
 

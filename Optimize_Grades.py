@@ -190,8 +190,8 @@ def nash_bargaining_solution(expert_satisfaction, crowd_satisfaction):
     return lambda_importance
 
 def nash_solution(variables, expert_votes, crowd_votes):
-    expert_side = np.log(variables[0]) + np.log(10 - np.mean(np.abs(expert_votes - variables[2])))
-    crowd_side = np.log(variables[1]) + np.log(10 - np.mean(np.abs(crowd_votes - variables[2])))
+    expert_side = np.log(variables[0]) + np.log(5 - np.mean(np.abs(expert_votes - variables[2])))
+    crowd_side = np.log(variables[1]) + np.log(5 - np.mean(np.abs(crowd_votes - variables[2])))
     
     return -1*(expert_side + crowd_side)
 
@@ -212,7 +212,7 @@ def kalai_smorodinsky_solution(expert_s_1, crowd_s_1, expert_s_2, crowd_s_2):
                                  
                                       
                                      
-def expectation_maximization_nash(optimal_grades, lambda_expert, df_votes, crowd_ids, expert_ids, num_iter = 100, verbose = False):
+def expectation_maximization_nash(optimal_grades, lambda_expert, df_votes, crowd_ids, expert_ids, max_grade, num_iter = 100, verbose = False):
     #lambda_expert = 0.5
     to_continue = True
     iterator = 1
@@ -228,8 +228,8 @@ def expectation_maximization_nash(optimal_grades, lambda_expert, df_votes, crowd
                                                   lambda_crowd = (1 - lambda_expert))[0]
       
         # FIND LAMBDA
-        expert_satisfaction = np.mean(10 - np.abs(df_votes[expert_ids] - vote), axis = 1).item() #optimal_grades['expert_sat']
-        crowd_satisfaction = np.mean(10 - np.abs(df_votes[crowd_ids] - vote), axis = 1).item() #optimal_grades['crowd_sat']
+        expert_satisfaction = np.mean(max_grade - np.abs(df_votes[expert_ids] - vote), axis = 1).item() #optimal_grades['expert_sat']
+        crowd_satisfaction = np.mean(max_grade - np.abs(df_votes[crowd_ids] - vote), axis = 1).item() #optimal_grades['crowd_sat']
     
         new_lambda = nash_bargaining_solution(expert_satisfaction, crowd_satisfaction)
         
@@ -254,7 +254,7 @@ def expectation_maximization_nash(optimal_grades, lambda_expert, df_votes, crowd
 # df_votes = votes
 
 
-def maximization_kalai_smorodinsky(optimal_grades, df_votes, crowd_ids, expert_ids ): #, expert_votes, crowd_votes
+def maximization_kalai_smorodinsky(optimal_grades, max_grade, df_votes, crowd_ids, expert_ids ): #, expert_votes, crowd_votes
     # FIND VOTE
     #vote_1 = objective_function_grades_absolute(expert_votes, crowd_votes, lambda_expert = 1, lambda_crowd = 0)[0]
     #vote_1 = optimal_grades[optimal_grades['alpha'] == 1]['optimal_grade'].item()
@@ -272,8 +272,8 @@ def maximization_kalai_smorodinsky(optimal_grades, df_votes, crowd_ids, expert_i
                                               np.array(df_votes[crowd_ids]).reshape(len(crowd_ids),1),  
                                               lambda_expert, 1 - lambda_expert)[0]
     
-    expert_satisfaction = np.mean(10 - np.abs(df_votes[expert_ids] - vote), axis = 1).item() 
-    crowd_satisfaction = np.mean(10 - np.abs(df_votes[crowd_ids] - vote), axis = 1).item()
+    expert_satisfaction = np.mean(max_grade - np.abs(df_votes[expert_ids] - vote), axis = 1).item() 
+    crowd_satisfaction = np.mean(max_grade - np.abs(df_votes[crowd_ids] - vote), axis = 1).item()
     
     
     area = expert_satisfaction * crowd_satisfaction
@@ -313,7 +313,7 @@ def optimize_grade_absolute_dist(df_alt_votes, expert_ids, crowd_ids, alphas):
 
 # optimal_grades = result_optimization_abs
 
-def calculate_satisfaction_absolute(df_alt_votes, optimal_grades, expert_ids, crowd_ids): 
+def calculate_satisfaction_absolute(df_alt_votes, optimal_grades, max_grade, expert_ids, crowd_ids): 
     
     res_data = optimal_grades.copy()
     
@@ -323,10 +323,10 @@ def calculate_satisfaction_absolute(df_alt_votes, optimal_grades, expert_ids, cr
     data = pd.merge(res_data, df_alt_votes, on = 'alternative_id')
     
     data['expert_sat'] = np.mean(
-        10 - np.abs(np.array(data[expert_ids]) - np.array(data['optimal_grade']).reshape(data.shape[0],1) )
+        max_grade - np.abs(np.array(data[expert_ids]) - np.array(data['optimal_grade']).reshape(data.shape[0],1) )
         , axis = 1)
     data['crowd_sat'] = np.mean(
-        10 - np.abs(np.array(data[crowd_ids]) - np.array(data['optimal_grade']).reshape(data.shape[0], 1) )
+        max_grade - np.abs(np.array(data[crowd_ids]) - np.array(data['optimal_grade']).reshape(data.shape[0], 1) )
         , axis = 1)
 
     if 'alpha' in list(data.columns):

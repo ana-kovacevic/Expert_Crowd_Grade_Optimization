@@ -21,8 +21,6 @@ sys.path.append('F:\PROJEKTI\ONR_FON\Experiments\Expert-Crowd')
 import pandas as pd
 import numpy as np
 
-
-
 from Data_Prepare import get_aggregated_data
 from Data_Prepare import get_user_ids_from_mapping
 from Data_Prepare import crete_alternatives_map
@@ -45,13 +43,14 @@ from Evaluate_and_Results import relative_overall_satisfaction
 
 
 
-def experiment_artifical_data(df_expert_crowd):
+def experiment_artifical_data(df_expert_crowd, max_grade = 10):
+    
     df_expert_crowd = df_expert_crowd.rename(columns = {'votes' : 'rate', 'group': 'voter', 'case': 'alternative_name'})
     df_expert_crowd['voter'] = df_expert_crowd['voter'] +  '_' +  df_expert_crowd['id'].astype(str)
     df_expert_crowd['rate']= df_expert_crowd['rate'].astype('float')
 
     alternative_map = crete_alternatives_map(df_expert_crowd, alternative_name = 'alternative_name')
-    alt_names = list(alternative_map['alternative_id'].unique())
+    #alt_names = list(alternative_map['alternative_id'].unique())
 
     voter_lookup = df_expert_crowd.copy()
     voter_lookup['voter_id'] = voter_lookup.groupby('voter').ngroup()
@@ -64,8 +63,8 @@ def experiment_artifical_data(df_expert_crowd):
     expert_ids = get_user_ids_from_mapping(voter_lookup, 'expert')
     crowd_ids = get_user_ids_from_mapping(voter_lookup, 'crowd')
 
-    df_expert = df_expert_crowd[df_expert_crowd['voter_id'].isin(expert_ids)]
-    df_crowd = df_expert_crowd[df_expert_crowd['voter_id'].isin(crowd_ids)]
+    #df_expert = df_expert_crowd[df_expert_crowd['voter_id'].isin(expert_ids)]
+    #df_crowd = df_expert_crowd[df_expert_crowd['voter_id'].isin(crowd_ids)]
 
     '''
     Optimize grade absolute
@@ -87,7 +86,7 @@ def experiment_artifical_data(df_expert_crowd):
     
     result_optm_abs = pd.concat([result_optm_abs0, result_optm_abs1])
     
-    result_optm_abs = calculate_satisfaction_absolute(df_alt_votes, result_optm_abs, expert_ids, crowd_ids)
+    result_optm_abs = calculate_satisfaction_absolute(df_alt_votes, result_optm_abs, max_grade, expert_ids, crowd_ids)
     
     # del(result_optm_abs0)
     # del(result_optm_abs1)
@@ -102,63 +101,58 @@ def experiment_artifical_data(df_expert_crowd):
     cons = [{'type':'eq', 'fun': lambda_const}]
     bnds = ((0.01, 0.99), (0.01, 0.99), (1, 10))
         
-    #res_nash_extreme = nash_results(df_alt_votes , crowd_ids, expert_ids, cons, lambda_expert = 0.5)
-    res_nash = nash_results(df_alt_votes , crowd_ids, expert_ids, cons, bnds, lambda_expert = 0.5)
+    res_nash = nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bnds, lambda_expert = 0.5)
     
     #res_nash.to_csv('results/results_nash'  + ' .csv')   
     
     ###### kalai
-    #res_kalai_extreme = kalai_results(df_alt_votes, result_optm_abs, crowd_ids, expert_ids)
-    res_kalai = kalai_results(df_alt_votes, result_optm_abs, crowd_ids, expert_ids)
+
+    res_kalai = kalai_results(df_alt_votes, result_optm_abs, max_grade, crowd_ids, expert_ids)
     
-    #res_kalai.to_csv('results/results_kalai_'  + ' .csv')
+
     
-    # res_kalai = pd.read_csv('results/results_kalai.csv').drop('Unnamed: 0', axis = 1)
-    
-    ####### Baseline methods
-    
-    # res_baseline_extreme = calculate_baseline_stats_satisfaction( df_alt_votes, crowd_ids, 
-    #                                           expert_ids ,stats = ['np.mean', 'np.median', 'mode'])
-    
-    res_baseline = calculate_baseline_stats_satisfaction( df_alt_votes, crowd_ids, 
+    res_baseline = calculate_baseline_stats_satisfaction( df_alt_votes, max_grade, crowd_ids, 
                                               expert_ids ,stats = ['np.mean', 'np.median', 'mode'])
     
-    
-    
-    #res_overal_sat_extreme = avg_satisfaction_by_group(res_kalai_extreme, res_nash_extreme, res_baseline_extreme).reset_index()
+
     res_overal_sat = avg_satisfaction_by_group(res_kalai, res_nash, res_baseline).reset_index()
-    #res_overal_sat.to_csv('results/results_overall_avg_satisfaction'+ expert_type +'.csv')
+    
     
     max_satisfaction = result_optm_abs[['alternative_id', 'crowd_sat', 'expert_sat']].groupby(by='alternative_id' ).agg('max').reset_index()
     max_satisfaction = max_satisfaction.rename(columns = {'crowd_sat':'max_crowd_sat', 'expert_sat' : 'max_expert_sat'})
     max_satisfaction['max_satisfaction_sum'] = max_satisfaction['max_crowd_sat'] + max_satisfaction['max_expert_sat']
     max_satisfaction['max_satisfaction_area'] = max_satisfaction['max_crowd_sat'] * max_satisfaction['max_expert_sat']
     
+    min_satisfaction = result_optm_abs[['alternative_id', 'crowd_sat', 'expert_sat']].groupby(by='alternative_id' ).agg('min').reset_index()
+    min_satisfaction = min_satisfaction.rename(columns = {'crowd_sat':'min_crowd_sat', 'expert_sat' : 'min_expert_sat'})
+    min_satisfaction['min_satisfaction_sum'] = min_satisfaction['min_crowd_sat'] + min_satisfaction['min_expert_sat']
+    min_satisfaction['min_satisfaction_area'] = min_satisfaction['min_crowd_sat'] * min_satisfaction['min_expert_sat']
     
-    ###### add relative satisfection by each alternative
-    # res_nash_extreme = relative_detail_satisfaction_nash(res_nash_extreme, max_satisfaction)
-    # res_kalai_extreme = relative_detail_satisfaction_kalai(res_kalai_extreme, max_satisfaction)
-    # res_baseline_extreme = relative_detail_satisfaction_baseline(res_baseline_extreme, max_satisfaction)
-    
+    ref_satisfaction = pd.merge(max_satisfaction, min_satisfaction, on = 'alternative_id')
     
     res_nash = relative_detail_satisfaction_nash(res_nash, max_satisfaction)
     res_kalai = relative_detail_satisfaction_kalai(res_kalai, max_satisfaction)
     res_baseline = relative_detail_satisfaction_baseline(res_baseline, max_satisfaction)
     
-    # res_nash.to_csv('results/results_nash_' + expert_type +'.csv')
-    # res_kalai.to_csv('results/results_kalai_' + expert_type +'.csv')
-    # res_baseline.to_csv('results/results_baseline_'+ expert_type +'.csv')
+    ##### Calculate gain
+    res_nash['gain_ratio'] = pd.merge(ref_satisfaction, res_nash, on = 'alternative_id').apply( 
+        lambda x: np.abs( ( ( x['lambda_exp']*x['max_expert_sat'] + (1 - x['lambda_exp']) * x['min_expert_sat'])/x['max_expert_sat']) 
+                    - ((x['lambda_exp']*x['min_crowd_sat'] + (1 - x['lambda_exp']) * x['max_crowd_sat'])/x['max_crowd_sat']))
+        , axis = 1)
     
+    res_kalai['gain_ratio'] = pd.merge(ref_satisfaction, res_kalai, on = 'alternative_id').apply( 
+    lambda x: np.abs(( ( x['lambda_exp']*x['max_expert_sat'] + (1 - x['lambda_exp']) * x['min_expert_sat'])/x['max_expert_sat']) 
+                - ((x['lambda_exp']*x['min_crowd_sat'] + (1 - x['lambda_exp']) * x['max_crowd_sat'])/x['max_crowd_sat']))
+    , axis = 1)
+    
+
+ 
      ## ----------------------------------------------------------------------------
-    ######### SUMMARIZE RESULTS
     
     # res_relative_sat_ext = relative_overall_satisfaction(res_nash_extreme, res_kalai_extreme, res_baseline_extreme, max_satisfaction)
-    res_relative_sat = relative_overall_satisfaction(res_nash, res_kalai, res_baseline, max_satisfaction)
-    
-    #res_relative_sat.to_csv('results/results_overall_relative_satisfaction'+ expert_type +'.csv')
-    # a = pd.merge(res_baseline[['alternative_id','crowd_sat-crowd_median']],
-    #          res_kalai[['alternative_id', 'crowd_sat']], on = 'alternative_id')
-    
+    res_relative_sat = relative_overall_satisfaction(res_nash, res_kalai, res_baseline, ref_satisfaction)
+    res_relative_sat
+   
     #################### Result analysis - lower uncertanty
         
     #df_crowd_sample = df_crowd.groupby('vote', group_keys = False).apply(lambda x: x.sample(min(len(x),3)))
@@ -174,59 +168,11 @@ def experiment_artifical_data(df_expert_crowd):
 '''
     Read Data
 '''
-
-df_expert_crowd_extreme= pd.read_csv('results/artifical_data_extreme.csv').drop('Unnamed: 0', axis = 1)
 df_expert_crowd = pd.read_csv('results/artifical_data_example.csv').drop('Unnamed: 0', axis = 1)
-
-data = df_expert_crowd_extreme
-case =  'case_6'
-kal = 10.000
-ns = 6.501
-
-
-def calc_dev(data, case,  kal, ns):
-    
-    case = data[data['case'] == case ][['group', 'votes']]
-
-    exp_votes = np.array(case[case['group'] == 'expert']['votes'] )
-    crd_votes = np.array(case[case['group'] == 'crowd']['votes'] )
-    
-    n_exp =  len(exp_votes)
-    n_crd = len(crd_votes)
-  
-
-
-    # kalai
-    abs_kal_exp = np.abs(exp_votes - kal)
-    abs_kal_exp[abs_kal_exp == 0] = 1
-
-    abs_kal_crd = np.abs(crd_votes - kal)
-    abs_kal_crd[abs_kal_crd == 0] = 1
-
-    kal_exp = np.sum( (exp_votes - kal ) / (abs_kal_exp) )/n_exp
-    kal_crd = np.sum((crd_votes - kal ) / (abs_kal_crd) )/n_crd
-
-    kal_ratio = (kal_exp + kal_crd)
-
-    # nash
-    abs_ns_exp = np.abs(exp_votes - ns)
-    abs_ns_exp[abs_ns_exp == 0] = 1
-
-    abs_ns_crd = np.abs(crd_votes - kal)
-    abs_ns_crd[abs_ns_crd == 0] = 1
-    
-    ns_exp = np.sum((exp_votes - ns ) / (abs_ns_exp))/n_exp
-    ns_crd = np.sum((crd_votes - ns ) / (abs_ns_crd))/n_crd
-
-    ns_ratio = ns_exp + ns_crd
-
-    return kal_ratio, ns_ratio
-
-calc_dev(df_expert_crowd_extreme, 'case_6',  kal = 10.000, ns = 6.501)
+df_expert_crowd_extreme= pd.read_csv('results/artifical_data_extreme.csv').drop('Unnamed: 0', axis = 1)
 
 
 res_kalai, res_nash, res_baseline, res_overal_sat, res_relative_sat = experiment_artifical_data(df_expert_crowd)
-
 res_kalai_extreme, res_nash_extreme, res_baseline_extreme, res_overal_sat_extreme, res_relative_sat_extreme = experiment_artifical_data(df_expert_crowd_extreme)
 
 def results_on_artifical_data(res_kalai, res_nash, res_baseline, extreme_flag):
@@ -243,6 +189,7 @@ def results_on_artifical_data(res_kalai, res_nash, res_baseline, extreme_flag):
     var_crd_sat = [col for col in res_baseline.columns if 'crowd_sat' in col] # and 'sat' in col ] #and 'alternative' not in col and 'rel' not in col]
     rel_expert = [col for col in res_baseline.columns if 'rel_expert' in col]
     rel_crowd = [col for col in res_baseline.columns if 'rel_crowd' in col]
+    #var_gain = [col for col in res_baseline.columns if 'gain' in col]
 
 
     res_baseline_vote = pd.melt(res_baseline, id_vars='alternative_id', value_vars=var_votes,
@@ -275,12 +222,13 @@ def results_on_artifical_data(res_kalai, res_nash, res_baseline, extreme_flag):
     res_base['lambda_exp'] = np.nan
     res_base['satisfaction_area'] = res_base['expert_sat'] * res_base['crowd_sat']
     res_base['satisfaction_sum'] = res_base['expert_sat'] + res_base['crowd_sat']
+    res_base['gain_ratio'] = np.abs(res_base['rel_expert_sat'] - res_base['rel_crowd_sat'])
     
     res_base = pd.merge(alternative_map, res_base, on = 'alternative_id')
     
     
     cols = ['alternative_name', 'alternative_id', 'lambda_exp', 'vote', 'expert_sat', 'crowd_sat', 
-            'satisfaction_area', 'satisfaction_sum', 'rel_crowd_sat', 'rel_expert_sat', 'method']
+            'satisfaction_area', 'satisfaction_sum', 'rel_crowd_sat', 'rel_expert_sat','gain_ratio', 'method']
     res_kalai = res_kalai[cols]
     res_nash = res_nash[cols]
     res_base = res_base[cols]
@@ -298,14 +246,80 @@ b = results_on_artifical_data(res_kalai_extreme, res_nash_extreme, res_baseline_
 
 res_all = pd.concat([a,b])
 
-res_all.to_csv('results/all_methods_results_by_alt.csv')
+res_overal_sat 
+res_relative_sat = res_relative_sat.rename(columns = ({'crowd_sat': 'rel-crowd_sat', 'expert_sat':'rel-expert_sat', 
+                                                       'satisfaction_area' : 'rel-satisfaction_area',
+                                                       'satisfaction_sum': 'rel-satisfaction_sum'}))
+res_overal_sat['extreme'] = 0
+res_relative_sat['extreme'] = 0
 
+res_overal_sat_extreme
+res_relative_sat_extreme = res_relative_sat_extreme.rename(columns = ({'crowd_sat': 'rel-crowd_sat', 'expert_sat':'rel-expert_sat', 
+                                                       'satisfaction_area' : 'rel-satisfaction_area',
+                                                       'satisfaction_sum': 'rel-satisfaction_sum'}))
+res_overal_sat_extreme['extreme'] = 1
+res_relative_sat_extreme['extreme'] = 1
+
+all_sum_1 = pd.concat([res_overal_sat, res_overal_sat_extreme],ignore_index=True).drop('index', axis = 1)
+all_sum_2 = pd.concat([res_relative_sat, res_relative_sat_extreme],ignore_index=True)
+all_sum_res = pd.merge(all_sum_1, all_sum_2, on = ['method', 'extreme'])
+all_sum_res.to_csv('results/all_sum_res_artifical_data.csv')
+
+#res_all.to_csv('results/all_methods_results_by_alt1.csv')
+
+'''
 res_relative_sat['expert/crowd'] = res_relative_sat['expert_sat'] / res_relative_sat['crowd_sat']
 res_relative_sat['crowd/expert'] = res_relative_sat['crowd_sat'] / res_relative_sat['expert_sat']
 
 
 res_relative_sat_extreme['expert/crowd'] = res_relative_sat_extreme['expert_sat'] / res_relative_sat_extreme['crowd_sat']
 res_relative_sat_extreme['crowd/expert'] = res_relative_sat_extreme['crowd_sat'] / res_relative_sat_extreme['expert_sat']
+
+
+data = df_expert_crowd_extreme
+case =  'case_6'
+kal = 10.000
+ns = 6.501
+
+def calc_dev(data, case,  kal, ns):
+    
+    case = data[data['case'] == case ][['group', 'votes']]
+
+    exp_votes = np.array(case[case['group'] == 'expert']['votes'] )
+    crd_votes = np.array(case[case['group'] == 'crowd']['votes'] )
+    
+    n_exp =  len(exp_votes)
+    n_crd = len(crd_votes)
+  
+    # kalai
+    abs_kal_exp = np.abs(exp_votes - kal)
+    abs_kal_exp[abs_kal_exp == 0] = 1
+
+    abs_kal_crd = np.abs(crd_votes - kal)
+    abs_kal_crd[abs_kal_crd == 0] = 1
+
+    kal_exp = np.sum( (exp_votes - kal ) / (abs_kal_exp) )/n_exp
+    kal_crd = np.sum((crd_votes - kal ) / (abs_kal_crd) )/n_crd
+
+    kal_ratio = (kal_exp + kal_crd)
+
+    # nash
+    abs_ns_exp = np.abs(exp_votes - ns)
+    abs_ns_exp[abs_ns_exp == 0] = 1
+
+    abs_ns_crd = np.abs(crd_votes - kal)
+    abs_ns_crd[abs_ns_crd == 0] = 1
+    
+    ns_exp = np.sum((exp_votes - ns ) / (abs_ns_exp))/n_exp
+    ns_crd = np.sum((crd_votes - ns ) / (abs_ns_crd))/n_crd
+
+    ns_ratio = ns_exp + ns_crd
+
+    return kal_ratio, ns_ratio
+
+calc_dev(df_expert_crowd_extreme, 'case_6',  kal = 10.000, ns = 6.501)
+'''
+
 
 
 '''

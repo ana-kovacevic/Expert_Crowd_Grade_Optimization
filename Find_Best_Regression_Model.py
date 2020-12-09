@@ -4,7 +4,7 @@ Created on Sat Oct 17 12:37:17 2020
 
 @author: akovacevic
 """
-# import numpy as np
+import numpy as np
 # import pandas as pd
 # import matplotlib.pyplot as plt 
 # import seaborn as sns
@@ -28,6 +28,8 @@ from sklearn.tree import DecisionTreeRegressor
 
 from sklearn.metrics import r2_score
 from sklearn.metrics import mean_squared_error
+#from sklearn.metrics import neg_root_mean_squared_error
+
 
 
 import pickle
@@ -44,14 +46,14 @@ def optimize_predictive_model_and_predict(df_tr, df_ts, folds = 3):
     param_grid_lr = { }    
     
     param_grid_rf = {
-        'n_estimators' : [50, 100, 200, 500]
+        'n_estimators' : [1, 3, 5, 7, 10, 50, 100, 200, 500]
         ,'max_depth':[5, 10, 15]
         #, 'min_samples_split': [5, 50, 100]
         } 
     
     param_grid_gbr = {
-        'n_estimators' : [10, 50, 100, 200, 500]
-        ,'max_depth':[5, 10, 15, 30]
+        'n_estimators' : [1, 3, 5, 7, 10, 50, 100, 200, 500]
+        ,'max_depth':[1, 3, 5, 7, 10, 15, 30]
         , 'learning_rate':[0.01, 0.1, 0.05, 0.25, 0.5, 1]
         #, 'min_samples_split': [5, 50, 100]
         } 
@@ -95,12 +97,12 @@ def optimize_predictive_model_and_predict(df_tr, df_ts, folds = 3):
         print(gs)
         model = gs.fit(X_train, y_train)
         print('Best params: %s' % model.best_params_)
-        print('Best training mse: %.3f' % model.best_score_)
+        print('Best training neg_root_mean_squared_error: %.3f' % model.best_score_)
         #model.best_estimator_
         y_pred = model.predict(X_test)
         #y_probas = model.predict_proba(X_test)
         #y_probas = y_probas[:,1]
-        print('Test set mse score for best params: %.3f ' % mean_squared_error(y_test, y_pred))
+        print('Test set sq root mse score for best params: %.3f ' % np.sqrt(mean_squared_error(y_test, y_pred)))
     	   # Track best (highest test accuracy) model
         mn = grid_dict[idx]
         model_name = mn  + '.sav'

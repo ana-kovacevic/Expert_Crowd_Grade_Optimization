@@ -190,8 +190,8 @@ def nash_bargaining_solution(expert_satisfaction, crowd_satisfaction):
     return lambda_importance
 
 def nash_solution(variables, expert_votes, crowd_votes):
-    expert_side = np.log(variables[0]) + np.log(5 - np.mean(np.abs(expert_votes - variables[2])))
-    crowd_side = np.log(variables[1]) + np.log(5 - np.mean(np.abs(crowd_votes - variables[2])))
+    expert_side = np.log(variables[0]) + np.log(12 - np.mean(np.abs(expert_votes - variables[2])))
+    crowd_side = np.log(variables[1]) + np.log(12 - np.mean(np.abs(crowd_votes - variables[2])))
     
     return -1*(expert_side + crowd_side)
 

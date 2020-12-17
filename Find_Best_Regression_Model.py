@@ -54,7 +54,7 @@ def optimize_predictive_model_and_predict(df_tr, df_ts, folds = 3):
     param_grid_gbr = {
         'n_estimators' : [1, 3, 5, 7, 10, 50, 100, 200, 500]
         ,'max_depth':[1, 3, 5, 7, 10, 15, 30]
-        , 'learning_rate':[0.01, 0.1, 0.05, 0.25, 0.5, 1]
+        ,'learning_rate':[0.01, 0.1, 0.05, 0.25, 0.5, 1]
         #, 'min_samples_split': [5, 50, 100]
         } 
     

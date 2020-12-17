@@ -117,7 +117,7 @@ train, test = train_test_split(ratings, mask_test_size, 3)
 voter_dict = dict(zip(voters_lookup['voter_id'], voters_lookup['voter']))
 # Check that non of alternatives or user is not empty in train set
 print(np.sort(np.count_nonzero(train, axis= 0)))
-print(np.sort(np.count_nonzero(train, axis= 1)))
+print(np.sort(np.count_nonzero(train, axis= 1)[0:1]))
 
 # Check sparsity of data
 print("Sparsity of data is: {:.2f} %. ".format( calculate_sparsity(ratings)))

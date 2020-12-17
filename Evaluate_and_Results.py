@@ -38,7 +38,7 @@ def nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bnds, lam
     
         # n =  expectation_maximization_nash(res, lambda_expert, votes, crowd_ids, expert_ids,max_grade, num_iter = 100, verbose = False)
         n = minimize(nash_solution, w, constraints= cons, bounds=bnds,
-                     args = (v_expert, v_crowd), method = 'SLSQP')
+                     args = (v_expert, v_crowd, max_grade), method = 'SLSQP')
         n = n.x[[0,2]]
         n = (i,) + tuple(n)
         

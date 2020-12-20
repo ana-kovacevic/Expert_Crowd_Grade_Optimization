@@ -69,8 +69,8 @@ alternative_map, alt_names, df_crowd, _, _ , df_science, df_journal = read_data_
 df_science['rate']= df_science['rate'].astype('float')
 df_journal['rate']= df_journal['rate'].astype('float')
 
-df_selected_expert =  df_journal #df_science #
-expert_type = 'journal'
+df_selected_expert =  df_science #df_journal #
+expert_type =  'science' # 'journal'
 
 alts_dict = dict(zip(alternative_map['alternative_id'] , alternative_map['alternative_name']))
 #### create mapping of all avaible users
@@ -243,6 +243,7 @@ result_optm_abs = pd.concat([result_optm_abs0, result_optm_abs1])
 
 result_optm_abs = calculate_satisfaction_absolute(df_alt_votes, result_optm_abs, max_grade, expert_ids, crowd_ids)
 
+result_optm_abs.to_csv('results/absolute_optimization_grades_and_sat_' + expert_type + '.csv')
 del(result_optm_abs0)
 del(result_optm_abs1)
 #result_optm_abs.to_csv('results/absolute_optimization_grades_and_sat.csv')
@@ -266,12 +267,12 @@ res_nash = nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bn
 
 #res_nash = nash_results(df_alt_votes, result_optm_abs , crowd_ids, expert_ids, lambda_expert = 0.5)
 
-res_nash.to_csv('results/results_nash' + expert_type + ' .csv')   
+res_nash.to_csv('results/results_nash_' + expert_type + '.csv')   
 
 ###### kalai
 res_kalai = kalai_results(df_alt_votes, result_optm_abs,max_grade, crowd_ids, expert_ids)
 
-res_kalai.to_csv('results/results_kalai_' + expert_type + ' .csv')
+res_kalai.to_csv('results/results_kalai_' + expert_type + '.csv')
 
 # res_kalai = pd.read_csv('results/results_kalai.csv').drop('Unnamed: 0', axis = 1)
 

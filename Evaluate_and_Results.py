@@ -10,7 +10,7 @@ import numpy as np
 from scipy.optimize import minimize #,optimize
 #from scipy.stats import mode
 
-from Optimize_Grades import expectation_maximization_nash
+#from Optimize_Grades import expectation_maximization_nash
 from Optimize_Grades import maximization_kalai_smorodinsky
 from Optimize_Grades import nash_solution
 from Optimize_Grades import calculate_satisfaction_absolute
@@ -152,10 +152,61 @@ def calculate_baseline_stats_satisfaction(df_alt_votes, max_grade, crowd_ids,
     df_baseline = data.drop(crowd_ids+expert_ids, axis = 1)
     return df_baseline
 
-def avg_satisfaction_by_group(res_kalai, res_nash, res_baseline):
+#optimal_grades = weighted_grades
+#data = df_alt_votes
+def satisfaction_calculation_weighted_methods(df_alt_votes, max_grade, crowd_ids, expert_ids, optimal_grades):
+    
+    data = df_alt_votes.copy()
+    #res_data = pd.DataFrame(columns=(['method', 'expert_sat', 'crowd_sat']))
+    
+    for key in optimal_grades.keys():
+        
+        grade = np.array(optimal_grades[key]).reshape(len(data),1)
+        expert_votes = np.array(data[expert_ids]).reshape(len(data),data[expert_ids].shape[1])
+        crowd_votes = np.array(data[crowd_ids]).reshape(len(data),data[crowd_ids].shape[1])
+            
+        expert_sat = np.mean(max_grade - np.abs(expert_votes - grade), axis = 1)
+        crowd_sat = np.mean(max_grade - np.abs(crowd_votes - grade), axis = 1)
+        
+        sum_sat = expert_sat + crowd_sat
+        product_sat = expert_sat*crowd_sat
+        
+        data['expert_sat-' + key] = expert_sat
+        data['crowd_sat-' + key] = crowd_sat
+        
+        
+        data['satisfaction_area-' + key] = product_sat
+        data['satisfaction_sum-' + key] = sum_sat
+        #res = pd.DataFrame()
+        #res['expert_sat'] = expert_sat
+        #res['crowd_sat'] = crowd_sat
+        #res['method'] = key
+    df_res = data.drop(crowd_ids+expert_ids, axis = 1)
+        #res_data = res_data.append(res, ignore_index = True)
+    return df_res
+
+def get_min_and_max_satisfactions(result_optm_abs):        
+    max_satisfaction = result_optm_abs[['alternative_id', 'crowd_sat', 'expert_sat']].groupby(by='alternative_id' ).agg('max').reset_index()
+    max_satisfaction = max_satisfaction.rename(columns = {'crowd_sat':'max_crowd_sat', 'expert_sat' : 'max_expert_sat'})
+    max_satisfaction['max_satisfaction_sum'] = max_satisfaction['max_crowd_sat'] + max_satisfaction['max_expert_sat']
+    max_satisfaction['max_satisfaction_area'] = max_satisfaction['max_crowd_sat'] * max_satisfaction['max_expert_sat']
+    
+    
+    min_satisfaction = result_optm_abs[['alternative_id', 'crowd_sat', 'expert_sat']].groupby(by='alternative_id' ).agg('min').reset_index()
+    min_satisfaction = min_satisfaction.rename(columns = {'crowd_sat':'min_crowd_sat', 'expert_sat' : 'min_expert_sat'})
+    min_satisfaction['min_satisfaction_sum'] = min_satisfaction['min_crowd_sat'] + min_satisfaction['min_expert_sat']
+    min_satisfaction['min_satisfaction_area'] = min_satisfaction['min_crowd_sat'] * min_satisfaction['min_expert_sat']
+        
+    ref_satisfaction = pd.merge(max_satisfaction, min_satisfaction, on = 'alternative_id')   
+
+    return min_satisfaction, max_satisfaction, ref_satisfaction     
+        
+
+def avg_satisfaction_by_group(res_kalai, res_nash, res_baseline, res_weighted):
     
     ### Kalai results
     sat_cols = [col for col in res_kalai.columns if 'sat' in col or 'area' in col]
+    sat_cols = [col for col in sat_cols if  'rel_' not in col and 'diff' not in col]
     kalai = pd.DataFrame(res_kalai[sat_cols].apply(lambda x: np.mean(x), axis = 0), columns = ['satisfaction'])
     kalai['method'] = 'Kalai'
     
@@ -165,6 +216,7 @@ def avg_satisfaction_by_group(res_kalai, res_nash, res_baseline):
     
     #### Nash results
     sat_cols = [col for col in res_nash.columns if 'sat' in col or 'area' in col]
+    sat_cols = [col for col in sat_cols if  'rel_' not in col and 'diff' not in col]
     nash = pd.DataFrame(res_nash[sat_cols].apply(lambda x: np.mean(x), axis = 0), columns = ['satisfaction'])
     nash['method'] = 'Nash'
     
@@ -177,15 +229,27 @@ def avg_satisfaction_by_group(res_kalai, res_nash, res_baseline):
     baseline = pd.DataFrame(res_baseline[sat_cols].apply(lambda x: np.mean(x), axis = 0), columns = ['satisfaction']) 
     
     baseline.reset_index(inplace=True)
-    baseline = baseline.rename(columns = {'voter_id':'group-method'})
+    baseline = baseline.rename(columns = {'voter_id':'group-method', 'index':'group-method'})
     
     baseline['group'] = baseline.apply(lambda x:  x['group-method'].split('-')[0], axis = 1)
     baseline['method'] = baseline.apply(lambda x: x['group-method'].split('-')[1], axis = 1)
     baseline = baseline.drop(['group-method'], axis = 1)
 
     #np.mean(5 - np.abs(df_alt_votes[crowd_ids] - df_baseline['crowd_median']), axis = 1)
+    
+    ###### Weighted results
+    sat_cols = [col for col in res_weighted.columns if 'sat' in col]
+    weighted = pd.DataFrame(res_weighted[sat_cols].apply(lambda x: np.mean(x), axis = 0), columns = ['satisfaction']) 
+    
+    weighted.reset_index(inplace=True)
+    weighted = weighted.rename(columns = {'voter_id':'group-method','index':'group-method'})
+    
+    weighted['group'] = weighted.apply(lambda x:  x['group-method'].split('-')[0], axis = 1)
+    weighted['method'] = weighted.apply(lambda x: x['group-method'].split('-')[1], axis = 1)
+    weighted = weighted.drop(['group-method'], axis = 1)
+    
 
-    res_all = pd.concat([kalai, nash, baseline])
+    res_all = pd.concat([kalai, nash, baseline, weighted])
     res_all= res_all.pivot(index = 'method', columns = 'group', values = 'satisfaction')
     
     res_all.reset_index(inplace=True)
@@ -208,7 +272,7 @@ def relative_detail_satisfaction_kalai(res_kalai, max_satisfaction):
     res_kalai['rel_satisfaction_area'] = res_kalai['satisfaction_area'] / max_satisfaction['max_satisfaction_area']
     
     return res_kalai
-
+#res_baseline=res_weighted
 def relative_detail_satisfaction_baseline(res_baseline, max_satisfaction):
     s = [col for col in res_baseline.columns if 'sat' in col]
     exp = [col for col in s if col.startswith('expert')]    
@@ -245,8 +309,9 @@ def relative_detail_satisfaction_baseline(res_baseline, max_satisfaction):
 
     
     return res_baseline
-
-def relative_overall_satisfaction(res_nash, res_kalai, res_baseline, max_satisfaction):
+#relative_overall_satisfaction(res_nash, res_kalai, res_baseline, res_weighted, ref_satisfaction)
+#max_satisfaction = ref_satisfaction
+def relative_overall_satisfaction(res_nash, res_kalai, res_baseline, res_weighted, max_satisfaction):
     
     #### Max values 
     total_max = pd.DataFrame(max_satisfaction.iloc[:,1:].apply(lambda x: np.sum(x), axis = 0), columns = ['total_satisfaction'])   
@@ -265,6 +330,7 @@ def relative_overall_satisfaction(res_nash, res_kalai, res_baseline, max_satisfa
     
     total_nash['rel_satisfaction'] = total_nash['total_satisfaction']/ total_max['total_satisfaction']
     total_nash['avg_gain'] = np.mean(res_nash['gain_ratio'])
+    
     ###### kalai
     sat_cols = [col for col in res_kalai.columns if 'rel' not in col and 'sat' in col and 'diff' not in col] 
  
@@ -309,7 +375,31 @@ def relative_overall_satisfaction(res_nash, res_kalai, res_baseline, max_satisfa
     
     base = pd.merge(base, base_gain, on = 'method')
     
-    all_res = pd.concat([total_nash, total_kalai, base])
+    ###### weighted
+    sat_cols = [col for col in res_weighted.columns if 'rel' not in col and 'sat' in col ] 
+    weight = pd.DataFrame(res_weighted[sat_cols].apply(lambda x: np.sum(x), axis = 0), columns = ['total_satisfaction'])
+    weight.reset_index(inplace = True)
+    weight = weight.rename(columns = {'voter_id':'group-method', 'index':'group-method'})
+    weight['group'] = weight.apply(lambda x:  x['group-method'].split('-')[0], axis = 1)
+    weight['method'] = weight.apply(lambda x: x['group-method'].split('-')[1], axis = 1)
+    weight = weight.drop(['group-method'], axis = 1)
+    
+    gain_cols = [col for col in res_weighted.columns if 'gain'  in col ] 
+    weight_gain =   pd.DataFrame(res_weighted[gain_cols].apply(lambda x: np.mean(x), axis = 0), columns = ['avg_gain']) 
+    weight_gain.reset_index(inplace = True)
+    weight_gain = weight_gain.rename(columns = {'voter_id':'group-method', 'index':'group-method'})
+    weight_gain['group'] = weight_gain.apply(lambda x:  x['group-method'].split('-')[0], axis = 1)
+    weight_gain['method'] = weight_gain.apply(lambda x: x['group-method'].split('-')[1], axis = 1)
+    weight_gain = weight_gain.drop(['group-method', "group"], axis = 1)
+    
+
+    weight['rel_satisfaction'] = np.select(
+        [weight.group == 'expert_sat' , weight.group == 'crowd_sat',  weight.group == 'satisfaction_area',  weight.group == 'satisfaction_sum'],
+        [weight.total_satisfaction/max_exp, weight.total_satisfaction/max_crowd,  weight.total_satisfaction/max_area, weight.total_satisfaction/max_sum], default=0)
+    
+    weight = pd.merge(weight, weight_gain, on = 'method')
+    
+    all_res = pd.concat([total_nash, total_kalai, base, weight])
     gain = all_res.groupby(['method', 'avg_gain']).size().reset_index(name='Freq')
     
     res_relative_sat = all_res.pivot(index = 'method', columns = 'group', values = 'rel_satisfaction')

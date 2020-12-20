@@ -282,12 +282,12 @@ res_nash = nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bn
 
 #res_nash = nash_results(df_alt_votes, result_optm_abs , crowd_ids, expert_ids, lambda_expert = 0.5)
 
-res_nash.to_csv('results/results_nash' + expert_type + ' .csv')   
+res_nash.to_csv('results/results_nash' + expert_type + '.csv')   
 
 ###### kalai
 res_kalai = kalai_results(df_alt_votes, result_optm_abs,max_grade, crowd_ids, expert_ids)
 
-res_kalai.to_csv('results/results_kalai_' + expert_type + ' .csv')
+res_kalai.to_csv('results/results_kalai_' + expert_type + '.csv')
 
 # res_kalai = pd.read_csv('results/results_kalai.csv').drop('Unnamed: 0', axis = 1)
 

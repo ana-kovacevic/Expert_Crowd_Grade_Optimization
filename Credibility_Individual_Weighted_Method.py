@@ -32,12 +32,12 @@ from Data_Prepare import get_user_ids_from_mapping
 from Weighting_And_Votes_Aggregation import get_voter_weights_by_distance
 from Weighting_And_Votes_Aggregation import calculate_alternatives_scores_and_get_selection
 
-from Evaluate_and_Results import calculate_baseline_stats_satisfaction
+#from Evaluate_and_Results import calculate_baseline_stats_satisfaction
 from Evaluate_and_Results import satisfaction_calculation_weighted_methods
 from Evaluate_and_Results import avg_satisfaction_by_group
 from Evaluate_and_Results import get_min_and_max_satisfactions
-from Evaluate_and_Results import relative_detail_satisfaction_nash
-from Evaluate_and_Results import relative_detail_satisfaction_kalai
+#from Evaluate_and_Results import relative_detail_satisfaction_nash
+#from Evaluate_and_Results import relative_detail_satisfaction_kalai
 from Evaluate_and_Results import relative_detail_satisfaction_baseline
 from Evaluate_and_Results import relative_overall_satisfaction
 
@@ -49,8 +49,8 @@ alternative_map, alt_names, df_crowd, _, _ , df_science, df_journal = read_data_
 df_science['rate']= df_science['rate'].astype('float')
 df_journal['rate']= df_journal['rate'].astype('float')
 
-df_selected_expert =  df_journal #df_science #
-expert_type = 'journal' #'science'  #
+df_selected_expert =  df_science # df_journal #
+expert_type = 'science'  # 'journal' #
 
 alts_dict = dict(zip(alternative_map['alternative_id'] , alternative_map['alternative_name']))
 
@@ -183,24 +183,9 @@ min_satisfaction, max_satisfaction, ref_satisfaction =  get_min_and_max_satisfac
 
 
 ###### add relative satisfection by each alternative and gains
-#res_nash = relative_detail_satisfaction_nash(res_nash, max_satisfaction)
-#res_kalai = relative_detail_satisfaction_kalai(res_kalai, max_satisfaction)
-#res_baseline = relative_detail_satisfaction_baseline(res_baseline, max_satisfaction)
+
 res_weighted = relative_detail_satisfaction_baseline(res_weighted, max_satisfaction)
 
-# res_nash['gain_ratio'] = pd.merge(ref_satisfaction, res_nash, on = 'alternative_id').apply( 
-#         lambda x: np.abs( ( ( x['lambda_exp']*x['max_expert_sat'] + (1 - x['lambda_exp']) * x['min_expert_sat'])/x['max_expert_sat']) 
-#                     - ((x['lambda_exp']*x['min_crowd_sat'] + (1 - x['lambda_exp']) * x['max_crowd_sat'])/x['max_crowd_sat']))
-#         , axis = 1)
-    
-# res_kalai['gain_ratio'] = pd.merge(ref_satisfaction, res_kalai, on = 'alternative_id').apply( 
-#     lambda x: np.abs(( ( x['lambda_exp']*x['max_expert_sat'] + (1 - x['lambda_exp']) * x['min_expert_sat'])/x['max_expert_sat']) 
-#                 - ((x['lambda_exp']*x['min_crowd_sat'] + (1 - x['lambda_exp']) * x['max_crowd_sat'])/x['max_crowd_sat']))
-#     , axis = 1)
-
-# res_nash.to_csv('results/results_nash_' + expert_type +'.csv')
-# res_kalai.to_csv('results/results_kalai_' + expert_type +'.csv')
-#res_baseline.to_csv('results/results_baseline_'+ expert_type +'.csv')
 res_weighted.to_csv('results/results_weighted_'+ expert_type +'.csv')
 
  ## ----------------------------------------------------------------------------

@@ -49,8 +49,8 @@ alternative_map, alt_names, df_crowd, _, _ , df_science, df_journal = read_data_
 df_science['rate']= df_science['rate'].astype('float')
 df_journal['rate']= df_journal['rate'].astype('float')
 
-df_selected_expert =  df_science # df_journal #
-expert_type = 'science'  # 'journal' #
+df_selected_expert = df_science #  df_journal # 
+expert_type = 'science' #   'journal' # 
 
 alts_dict = dict(zip(alternative_map['alternative_id'] , alternative_map['alternative_name']))
 
@@ -108,7 +108,6 @@ alt_factors = np.array( pd.read_csv('results/alts_factors_' + expert_type + '.cs
 #### extract expert and crowd ids for similarity
 expert_ids = get_user_ids_from_mapping(voters_lookup, 'expert')
 crowd_ids = get_user_ids_from_mapping(voters_lookup, 'crowd')
-
 
 
 """
@@ -173,8 +172,6 @@ res_baseline = pd.read_csv('results/results_baseline_'+ expert_type +'.csv').dro
 #### weighted method
 res_weighted = satisfaction_calculation_weighted_methods(df_alt_votes, max_grade, crowd_ids, expert_ids, weighted_grades)
 
-res_overal_sat = avg_satisfaction_by_group(res_kalai, res_nash, res_baseline, res_weighted).reset_index()
-res_overal_sat.to_csv('results/results_overall_avg_satisfaction_'+ expert_type +'.csv')
 
 
 ###### relative satisfaction calculation
@@ -191,7 +188,35 @@ res_weighted.to_csv('results/results_weighted_'+ expert_type +'.csv')
  ## ----------------------------------------------------------------------------
 ######### SUMMARIZE RESULTS
 
-res_relative_sat = relative_overall_satisfaction(res_nash, res_kalai, res_baseline, res_weighted, ref_satisfaction)
+####### select alternatives with certan level of difference between groups
+res_baseline['median_diff'] = np.abs(res_baseline['expert_median'] - res_baseline['crowd_median'])
+
+diff_med = 1.0
+alts_diff = list(res_baseline[res_baseline['median_diff']>= diff_med]['alternative_id'])
+print(len(alts_diff))
+
+kalai = res_kalai[res_kalai['alternative_id'].isin(alts_diff)]
+nash = res_nash[res_nash['alternative_id'].isin(alts_diff)]
+baseline = res_baseline[res_baseline['alternative_id'].isin(alts_diff)]
+weighted = res_weighted[res_weighted['alternative_id'].isin(alts_diff)]
+
+res_overal_sat = avg_satisfaction_by_group(kalai, nash, baseline, weighted).reset_index()
+res_overal_sat.to_csv('results/results_overall_avg_satisfaction_'+ expert_type +'.csv')
+
+diff_grade = 1.0
+alts_diff = list(res_baseline[res_baseline['median_diff']>= diff_med]['alternative_id'])
+print(len(alts_diff))
+
+kalai = res_kalai[res_kalai['alternative_id'].isin(alts_diff)]
+nash = res_nash[res_nash['alternative_id'].isin(alts_diff)]
+baseline = res_baseline[res_baseline['alternative_id'].isin(alts_diff)]
+weighted = res_weighted[res_weighted['alternative_id'].isin(alts_diff)]
+
+res_overal_sat = avg_satisfaction_by_group(kalai, nash, baseline, weighted).reset_index()
+
+
+
+res_relative_sat = relative_overall_satisfaction(nash, kalai, baseline, weighted, ref_satisfaction)
 res_relative_sat = res_relative_sat.rename(columns = ({'crowd_sat': 'rel-crowd_sat', 'expert_sat':'rel-expert_sat', 
                                                        'satisfaction_area' : 'rel-satisfaction_area',
                                                        'satisfaction_sum': 'rel-satisfaction_sum'}))
@@ -202,9 +227,90 @@ all_sum_res = all_sum_res.drop('index', axis = 1)
 
 all_sum_res.to_csv('results/results_overall_relative_'+ expert_type +'.csv')
 
-#################### Result analysis - lower uncertanty
-    
+
+
+###### Statistic
+
+# Mann-Whitney U test
+
+from scipy.stats import mannwhitneyu
+# seed the random number generator
+for i in range(len(df_alt_votes)):
+    #print('Alternative: ', str(i))
+# generate two independent samples
+    data1 = df_alt_votes[expert_ids].iloc[i,:]
+    data2 = df_alt_votes[crowd_ids].iloc[i,:]
+# compare samples
+    stat, p = mannwhitneyu(data1, data2)
+    #print('Statistics=%.3f, p=%.3f' % (stat, p))
+# interpret
+    alpha = 0.01
+    if p > alpha:
+        continue #print('Same distribution (fail to reject H0)')
+    else:
+        print('Alternative: ', str(i))
+        print('Statistics=%.3f, p=%.3f' % (stat, p))
+        print('Different distribution (reject H0)')
+        print('------------------------------------------------')
+
+#################### Result analysis - differences
+
+from Data_Prepare import all_mathods_optimal_grades
+from Evaluate_and_Results import add_method_name
+
+res_nash = add_method_name(res_nash, '-nash', keep_same = {'alternative_id'})
+res_kalai = add_method_name(res_kalai, '-kalai', keep_same = {'alternative_id'})
+
+df_list = [res_nash, res_kalai, res_baseline, res_weighted]    
 #df_crowd_sample = df_crowd.groupby('vote', group_keys = False).apply(lambda x: x.sample(min(len(x),3)))
+from functools import reduce
+df_all_detail = reduce(lambda left,right: pd.merge(left,right,on='alternative_id'), df_list)
+df_all_detail.to_csv('results/results_detail_all_'+ expert_type +'.csv')
+#### Take optimal grade for each method
+all_method_votes = all_mathods_optimal_grades(df_list)
+
+
+
+###### merge all votes in one dataframe
+df_final = reduce(lambda left,right: pd.merge(left,right,on='alternative_id'), all_method_votes)
+df_final.columns = [x[-1] if len(x)>1 else x[0] for x in list(df_final.columns.str.split('-'))]
+
+
+#from Evaluate_and_Results import   satisfaction_gain_derivative
+from Evaluate_and_Results import calculate_gain_gradient
+
+#satisfaction_gain_derivative(e_votes, c_votes, grade)
+res_derivative = calculate_gain_gradient(df_alt_votes, df_final, expert_ids, crowd_ids)
+
+res_derivative = res_derivative.abs()
+met_cols = ['gain2-nash', 'gain2-kalai', 'gain2-crowd_mean',
+       'gain2-expert_mean', 'gain2-mean', 'gain2-crowd_median',
+       'gain2-expert_median', 'gain2-median', 'gain2-crowd_majority',
+       'gain2-expert_majority', 'gain2-majority', 'gain2-w_crowd_grades',
+       'gain2-w_all_grades']
+
+#melt for visual analysis
+#der = pd.melt(res_derivative, id_vars=['alternative_id'], value_vars=met_cols, var_name = 'method', value_name = 'gain2')
+#der['method'].str.split('-')[1]
+
+res_derivative[met_cols] = 0 - res_derivative[met_cols]
+
+res_derivative = res_derivative.abs()
+
+
+
+derivative_sum = res_derivative[met_cols].mean(axis = 0)
+derivative_sum = derivative_sum.reset_index()
+
+res_derivative.to_csv('results/results_derivative_detail_'+ expert_type +'.csv')
+
+cols = list(df_final.columns)
+try:
+    cols.remove('alternative_id')
+except ValueError:
+    print("Given Element Not Found in List")
+    
+pd.melt(df_final, id_vars=['alternative_id'], value_vars=cols, var_name = 'method', value_name = 'grade')
 
 ##################################### Plots
 '''

@@ -111,6 +111,7 @@ def calculate_baseline_stats_satisfaction(df_alt_votes, max_grade, crowd_ids,
     
     data = df_alt_votes.copy() #pd.DataFrame(df_alt_votes['alternative_id'], columns = ['alternative_id'])
     
+    #### aggregate  votes based on given statistic measure
     #i = 0
     for i in range(len(stats)):
         name = stats[i]
@@ -168,9 +169,10 @@ def satisfaction_calculation_weighted_methods(df_alt_votes, max_grade, crowd_ids
         expert_sat = np.mean(max_grade - np.abs(expert_votes - grade), axis = 1)
         crowd_sat = np.mean(max_grade - np.abs(crowd_votes - grade), axis = 1)
         
-        sum_sat = expert_sat + crowd_sat
+        sum_sat = expert_sat + crowd_sat 
         product_sat = expert_sat*crowd_sat
         
+        data['optimal_grade-' + key] = grade
         data['expert_sat-' + key] = expert_sat
         data['crowd_sat-' + key] = crowd_sat
         
@@ -291,12 +293,20 @@ def relative_detail_satisfaction_baseline(res_baseline, max_satisfaction):
         res_baseline['rel_crowd-' + name] = res_baseline[c]/max_satisfaction['max_crowd_sat']
         
     for c in adds:
-        name = c.split('_')[1]
-        res_baseline['rel-' + name] = res_baseline[c]/max_satisfaction['max_satisfaction_sum']
+        #print('Column name is: ', c)
+        name = c.split('-')[1]
+        #print('Splited coolum name is: ', name)
+        #print('Final column name is: ', 'rel_sum-' + name)
+        #print('------------------------------------------------------')
+        res_baseline['rel_sum-' + name] = res_baseline[c]/max_satisfaction['max_satisfaction_sum']
         
     for c in area:
-        name = c.split('_')[1]
-        res_baseline['rel-' + name] = res_baseline[c]/max_satisfaction['max_satisfaction_area']
+        #print('Column name is: ', c)
+        name = c.split('-')[1]
+        #print('Splited coolum name is: ', name)
+        #print('Final column name is: ', 'rel_sat_area-' + name)
+        #print('------------------------------------------------------')
+        res_baseline['rel_area-' + name] = res_baseline[c]/max_satisfaction['max_satisfaction_area']
     
     rel_exp = [col for col in res_baseline.columns if col.startswith('rel_expert')]    
     rel_crd = [col for col in res_baseline.columns if col.startswith('rel_crowd')]
@@ -305,7 +315,8 @@ def relative_detail_satisfaction_baseline(res_baseline, max_satisfaction):
         name = e.split('-')[1]
         assert(e.split('-')[1] == c.split('-')[1])
         
-        res_baseline['gain-' + name] = np.abs(res_baseline[e] - res_baseline[c])
+        #res_baseline['gain-' + name] = np.abs(res_baseline[e] - res_baseline[c])
+        res_baseline['gain-' + name] = np.abs(res_baseline[e]*0.5 - res_baseline[c]*0.5)
 
     
     return res_baseline
@@ -411,6 +422,72 @@ def relative_overall_satisfaction(res_nash, res_kalai, res_baseline, res_weighte
     #res_relative_sat['avg_gain'] = np.where(res_relative_sat['method'].isin(base_methods), np.abs(res_relative_sat['expert_sat'] - res_relative_sat['crowd_sat'] ), 0)
 
     return res_relative_sat
+
+def satisfaction_gain_derivative(v_expert, v_crowd, grade):
+    #e_part = -np.mean((e_votes - grade)/np.abs(e_votes - grade))
+    #c_part = np.mean((c_votes - grade)/np.abs(c_votes - grade))
+    e_med =  np.median(v_expert, axis=1).reshape(len(grade), 1)
+    c_med = np.median(v_crowd, axis = 1).reshape(len(grade), 1)
+    
+    #e_max = np.abs(v_expert - e_med)#.reshape(len(grade), 1)
+    #c_max = np.abs(v_crowd - c_med)#.reshape(len(grade), 1)
+    
+    e_max = np.mean(np.abs(v_expert - e_med), axis = 1).reshape(len(grade), 1)
+    c_max = np.mean(np.abs(v_crowd - c_med), axis = 1).reshape(len(grade), 1)
+    
+    ####e_part = (grade - v_expert)/ (e_max * np.abs(grade - v_expert))
+    ####c_part = (grade - v_crowd)/ (c_max * np.abs(grade - v_crowd))
+    e_part = (grade - v_expert)/np.abs(grade - v_expert)
+    c_part = (grade - v_crowd)/np.abs(grade - v_crowd)
+    
+    e_part = np.nan_to_num(e_part, posinf=0, neginf=0)#.reshape(len(grade), 1)
+    c_part = np.nan_to_num(c_part, posinf=0, neginf=0)#.reshape(len(grade), 1)
+    
+    e_part = np.mean(e_part, axis = 1).reshape(len(grade), 1)
+    c_part = np.mean(c_part, axis = 1).reshape(len(grade), 1)
+
+    grad = e_part - c_part
+    
+    return grad
+
+# data = df_alt_votes
+# grade_data =  df_final
+
+def calculate_gain_gradient(data, grade_data, expert_ids, crowd_ids):
+    
+    res_df = data.copy()
+    methods = list(grade_data.columns)
+    methods.remove('alternative_id')
+    
+    v_expert = np.array(data[expert_ids])
+    v_crowd = np.array(data[crowd_ids])
+    
+    # v_expert = np.array(data[data['alternative_id'] == 1639][expert_ids])
+    # v_crowd = np.array(data[data['alternative_id'] == 1639][crowd_ids])
+    # met = 'kalai'
+    for met in methods:
+        #res = optimal_grades[(optimal_grades['alternative_id'] == i) & (optimal_grades['alpha'] == lambda_expert)]
+        #grade = np.array(grade_data[grade_data['alternative_id'] == 1639][met]).reshape(1, 1)
+        
+        grade = np.array(grade_data[met]).reshape(len(grade_data), 1)
+        grad = satisfaction_gain_derivative(v_expert, v_crowd, grade)
+        
+        #satisfaction_gain_derivative(v_expert[0,:], v_crowd[0,:], grade[0])
+        
+        
+        res_df['gain2-' + met] = grad
+        
+    res_df = res_df.drop(crowd_ids+expert_ids, axis = 1)
+    
+    return res_df
+        
+    #return grad
+    
+def add_method_name(df, string, keep_same = {'alternative_id'}):
+    
+    
+    df.columns = ['{}{}'.format(c, '' if c in keep_same else string)  for c in df.columns]
+    return df
 
 def add_median_variation(df_votes, n_repetitions, n_samples):
     '''

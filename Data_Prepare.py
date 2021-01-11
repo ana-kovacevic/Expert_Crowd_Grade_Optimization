@@ -360,6 +360,21 @@ def get_user_ids_from_mapping(data_lookup, string_lookup, name_col = 'voter', id
     ids = ids.tolist()
     return ids
 
+def all_mathods_optimal_grades(df_list):
+    
+    res_list = list()
+    for i in range(len(df_list)):
+        df = df_list[i]
+        grade_cols = [col for col in df.columns if 'optimal_grade' in col or 'vote' in col]
+        if  len(grade_cols) == 0:
+            grade_cols = [col for col in df.columns if '-' not in col and 'alt' not in col ]
+        grade_cols.insert(0, 'alternative_id')    
+        
+        df_filterd = df[grade_cols]  
+        res_list.append(df_filterd)
+        
+    return res_list
+            
 
 def calculate_crowd_exper_diff(df_crowd_sample, df_selected_expert, df_alt_votes, crowd_ids):    
     

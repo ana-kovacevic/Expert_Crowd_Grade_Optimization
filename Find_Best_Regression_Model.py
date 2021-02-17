@@ -5,7 +5,7 @@ Created on Sat Oct 17 12:37:17 2020
 @author: akovacevic
 """
 import numpy as np
-# import pandas as pd
+import pandas as pd
 # import matplotlib.pyplot as plt 
 # import seaborn as sns
 
@@ -41,7 +41,7 @@ import pickle
 # df = final_train_data #.drop(['voter_id_map', 'alternative_id'], axis=1)
 # df.head()
 
-def optimize_predictive_model_and_predict(df_tr, df_ts, folds = 3):
+def optimize_predictive_model_and_predict(df_tr, df_ts, expert_type, folds = 3 ):
 
     param_grid_lr = { }    
     
@@ -91,6 +91,8 @@ def optimize_predictive_model_and_predict(df_tr, df_ts, folds = 3):
     best_mse = 100
     best_mod = 0
     best_gs = ''
+    
+    result = pd.DataFrame(columns = ['DataSet', 'Model', 'best_params', 'score_train', 'score_test'])
 
     for idx, gs in enumerate(grids):
         print('\nEstimator: %s' % grid_dict[idx])		
@@ -103,20 +105,24 @@ def optimize_predictive_model_and_predict(df_tr, df_ts, folds = 3):
         #y_probas = model.predict_proba(X_test)
         #y_probas = y_probas[:,1]
         print('Test set sq root mse score for best params: %.3f ' % np.sqrt(mean_squared_error(y_test, y_pred)))
+        test_error = np.sqrt(mean_squared_error(y_test, y_pred))
     	   # Track best (highest test accuracy) model
         mn = grid_dict[idx]
         model_name = mn  + '.sav'
-        model_filename = 'Models/' + model_name
+        model_filename = 'Models/' + expert_type + '_' + model_name
         
         pickle._dump(model.best_estimator_, open(model_filename, 'wb'))
-        dict_name = 'CV_results/cv_results_' + mn  + '.pkl' 
+        dict_name = 'CV_results/cv_results_' + expert_type + '_' + mn  + '.pkl' 
         pickle._dump(gs.cv_results_, open(dict_name, "wb"))
         
+        result = result.append({'DataSet': expert_type, 'Model': mn, 'best_params':model.best_params_, 'score_train':model.best_score_ , 'score_test':test_error},  ignore_index=True)
         if mean_squared_error(y_test, y_pred) < best_mse:
             best_mse = mean_squared_error(y_test, y_pred)
             best_gs = gs
             best_mod = idx
     print('\nModel with best test set metrics: %s' % grid_dict[best_mod])
+        
+    result.to_csv('results/predictive_res_' + expert_type + '.csv')
 
 
     all_pred = grids[best_mod].predict(df_ts)

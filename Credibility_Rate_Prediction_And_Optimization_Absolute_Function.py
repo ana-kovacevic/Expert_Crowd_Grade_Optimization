@@ -70,8 +70,8 @@ alternative_map, alt_names, df_crowd, _, _ , df_science, df_journal = read_data_
 df_science['rate']= df_science['rate'].astype('float')
 df_journal['rate']= df_journal['rate'].astype('float')
 
-df_selected_expert =  df_journal #df_science # 
-expert_type = 'journal' #   'science' # 
+df_selected_expert = df_science #  df_journal #
+expert_type = 'science' # 'journal' #   
 
 alts_dict = dict(zip(alternative_map['alternative_id'] , alternative_map['alternative_name']))
 #### create mapping of all avaible users
@@ -198,7 +198,7 @@ non_rated_combinations = non_rated_combinations.drop([ 'voter_id',  'alternative
     Find Best Predictive model
 """
 start = time.time()
-all_pred, grids, best_mod = optimize_predictive_model_and_predict(final_train_data, non_rated_combinations, folds = 3)
+all_pred, grids, best_mod = optimize_predictive_model_and_predict(final_train_data, non_rated_combinations, expert_type, folds = 3)
 all_exp_grades, all_crowd_grades = prepare_data_for_grade_optimization(all_pred, test_combinations, df_selected_expert, df_crowd, voters_lookup, expert_ids, crowd_ids)
 end = time.time()
 print('Total time to find embeddings (in min): ', str((end - start)/60)) ###204.82
@@ -268,7 +268,7 @@ del(result_optm_abs1)
 cons = [{'type':'eq', 'fun': lambda_const}]
 bnds = ((0.01, 0.99), (0.01, 0.99), (1, 5))
 
-
+# df_alt_votes = df_alt_votes[df_alt_votes.alternative_id == 582]
 res_nash = nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bnds, lambda_expert = 0.5)
 
 #res_nash = nash_results(df_alt_votes, result_optm_abs , crowd_ids, expert_ids, lambda_expert = 0.5)
@@ -276,11 +276,12 @@ res_nash = nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bn
 res_nash.to_csv('results/results_nash_' + expert_type + '.csv')   
 
 ###### kalai
-res_kalai = kalai_results(df_alt_votes, result_optm_abs,max_grade, crowd_ids, expert_ids)
+res_kalai = kalai_results(df_alt_votes, result_optm_abs, max_grade, crowd_ids, expert_ids)
 
 res_kalai.to_csv('results/results_kalai_' + expert_type + '.csv')
 
 # res_kalai = pd.read_csv('results/results_kalai.csv').drop('Unnamed: 0', axis = 1)
+
 
 ####### Baseline methods
 
@@ -299,9 +300,9 @@ min_satisfaction, max_satisfaction, ref_satisfaction =  get_min_and_max_satisfac
 #maxsat_col = [col for col in max_satisfaction.columns if 'sat' in col]
 
 ###### add relative satisfection by each alternative
-res_nash = relative_detail_satisfaction_nash(res_nash, max_satisfaction)
-res_kalai = relative_detail_satisfaction_kalai(res_kalai, max_satisfaction)
-res_baseline = relative_detail_satisfaction_baseline(res_baseline, max_satisfaction)
+res_nash = relative_detail_satisfaction_nash(res_nash, ref_satisfaction)
+res_kalai = relative_detail_satisfaction_kalai(res_kalai, ref_satisfaction)
+res_baseline = relative_detail_satisfaction_baseline(res_baseline, ref_satisfaction)
 
 '''
 res_nash['gain_ratio'] = pd.merge(ref_satisfaction, res_nash, on = 'alternative_id').apply( 

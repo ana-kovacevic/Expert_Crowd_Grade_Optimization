@@ -49,8 +49,8 @@ alternative_map, alt_names, df_crowd, _, _ , df_science, df_journal = read_data_
 df_science['rate']= df_science['rate'].astype('float')
 df_journal['rate']= df_journal['rate'].astype('float')
 
-df_selected_expert = df_science #  df_journal # 
-expert_type = 'science' #   'journal' # 
+df_selected_expert = df_journal # df_science #  
+expert_type = 'journal' # 'science' #  
 
 alts_dict = dict(zip(alternative_map['alternative_id'] , alternative_map['alternative_name']))
 
@@ -181,7 +181,7 @@ min_satisfaction, max_satisfaction, ref_satisfaction =  get_min_and_max_satisfac
 
 ###### add relative satisfection by each alternative and gains
 
-res_weighted = relative_detail_satisfaction_baseline(res_weighted, max_satisfaction)
+res_weighted = relative_detail_satisfaction_baseline(res_weighted, ref_satisfaction)
 
 res_weighted.to_csv('results/results_weighted_'+ expert_type +'.csv')
 

@@ -61,7 +61,7 @@ def nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bnds, lam
 # optimal_grades =  result_optm_abs
 def kalai_results(df_alt_votes, optimal_grades, max_grade, crowd_ids, expert_ids):
     res_kalai = pd.DataFrame(columns=(['alternative_id', 'lambda_exp', 'vote', 'expert_sat', 'crowd_sat', 'satisfaction_area'])) 
-    #i = 0
+    #i = 582
     for i in list(df_alt_votes.alternative_id.unique()):
         res = optimal_grades[(optimal_grades['alternative_id'] == i) &(optimal_grades['alpha'].isin([0,1]))]
         votes = df_alt_votes[df_alt_votes['alternative_id'] == i]
@@ -75,11 +75,11 @@ def kalai_results(df_alt_votes, optimal_grades, max_grade, crowd_ids, expert_ids
         res_kalai = res_kalai.append(pd.Series(list(k), index=res_kalai.columns ), ignore_index=True)
     
     res_kalai['satisfaction_sum'] = res_kalai['expert_sat'] + res_kalai['crowd_sat']
-    res_kalai['crowd_mean']=df_alt_votes[crowd_ids].apply(lambda x: np.mean(x), axis =1)
-    res_kalai['expert_mean']=df_alt_votes[expert_ids].apply(lambda x: np.mean(x), axis =1)
+    res_kalai['crowd_mean'] = df_alt_votes[crowd_ids].apply(lambda x: np.mean(x), axis =1)
+    res_kalai['expert_mean'] = df_alt_votes[expert_ids].apply(lambda x: np.mean(x), axis =1)
     res_kalai['mean_diff'] = res_kalai['expert_mean'] - res_kalai['crowd_mean']
-    res_kalai['crowd_std']=df_alt_votes[crowd_ids].apply(lambda x: np.std(x), axis =1)
-    res_kalai['expert_std']=df_alt_votes[expert_ids].apply(lambda x: np.std(x), axis =1)
+    res_kalai['crowd_std'] = df_alt_votes[crowd_ids].apply(lambda x: np.std(x), axis =1)
+    res_kalai['expert_std'] = df_alt_votes[expert_ids].apply(lambda x: np.std(x), axis =1)
     res_kalai['diff_sat'] =  res_kalai['expert_sat'] - res_kalai['crowd_sat']
     #res_kalai.to_csv('results/results_kalai.csv')
     return res_kalai
@@ -257,25 +257,49 @@ def avg_satisfaction_by_group(res_kalai, res_nash, res_baseline, res_weighted):
     res_all.reset_index(inplace=True)
     return res_all
 
-def relative_detail_satisfaction_nash(res_nash, max_satisfaction):
+
+
+def relative_detail_satisfaction_nash(res_nash, ref_satisfaction):
     
-    res_nash['rel_expert_sat'] = res_nash['expert_sat'] / max_satisfaction['max_expert_sat']
-    res_nash['rel_crowd_sat'] = res_nash['crowd_sat'] / max_satisfaction['max_crowd_sat']
-    res_nash['rel_satisfaction_sum'] = res_nash['satisfaction_sum'] / max_satisfaction['max_satisfaction_sum']
-    res_nash['rel_satisfaction_area'] = res_nash['satisfaction_area'] / max_satisfaction['max_satisfaction_area']
+    res_nash['rel_expert_sat'] = res_nash['expert_sat'] / ref_satisfaction['max_expert_sat']
+    res_nash['rel_crowd_sat'] = res_nash['crowd_sat'] / ref_satisfaction['max_crowd_sat']
+    #res_nash['rel_satisfaction_sum'] = res_nash['satisfaction_sum'] / max_satisfaction['max_satisfaction_sum']
+    #res_nash['rel_expert_sat'] = (res_nash['expert_sat'] -  ref_satisfaction['min_expert_sat'])/ (ref_satisfaction['max_expert_sat'] - ref_satisfaction['min_expert_sat'])
+    #res_nash['rel_crowd_sat'] = (res_nash['crowd_sat'] - ref_satisfaction['min_expert_sat']) / (ref_satisfaction['max_crowd_sat'] - ref_satisfaction['min_crowd_sat'])
+    res_nash['rel_satisfaction_sum'] = res_nash['rel_expert_sat'] + res_nash['rel_crowd_sat']
+    res_nash['rel_satisfaction_area'] = res_nash['rel_expert_sat'] * res_nash['rel_crowd_sat']
     
     return res_nash
     
-def relative_detail_satisfaction_kalai(res_kalai, max_satisfaction):
+def relative_detail_satisfaction_kalai(res_kalai, ref_satisfaction):
     
-    res_kalai['rel_expert_sat'] = res_kalai['expert_sat'] / max_satisfaction['max_expert_sat']
-    res_kalai['rel_crowd_sat'] = res_kalai['crowd_sat'] / max_satisfaction['max_crowd_sat']
-    res_kalai['rel_satisfaction_sum'] = res_kalai['satisfaction_sum'] / max_satisfaction['max_satisfaction_sum']
-    res_kalai['rel_satisfaction_area'] = res_kalai['satisfaction_area'] / max_satisfaction['max_satisfaction_area']
+    res_kalai['rel_expert_sat'] = res_kalai['expert_sat'] / ref_satisfaction['max_expert_sat']
+    res_kalai['rel_crowd_sat'] = res_kalai['crowd_sat'] / ref_satisfaction['max_crowd_sat']
+    #res_kalai['rel_satisfaction_sum'] = res_kalai['satisfaction_sum'] / max_satisfaction['max_satisfaction_sum']
+    #result = res_kalai.copy()
+    #result = pd.merge(result, ref_satisfaction[['alternative_id','min_expert_sat','max_expert_sat', 'min_crowd_sat', 'max_crowd_sat', 'max_satisfaction_area']], how='inner', on = 'alternative_id')
+    #result['rel_expert_sat'] = (result['expert_sat'] - result['min_expert_sat'] )/ (result['max_expert_sat'] - result['min_expert_sat'])
+    #result['rel_crowd_sat'] = (result['crowd_sat'] - result['min_crowd_sat'] )/ (result['max_crowd_sat'] - result['min_crowd_sat'])
+    
+    #divided = np.where((result['expert_sat'] - result['min_expert_sat']) < 0, 0, (result['expert_sat'] - result['min_expert_sat']))
+    #divisor = np.array(result['max_expert_sat'] - result['min_expert_sat'])
+
+    #result['rel_expert_sat'] = np.nan_to_num(divided/divisor, posinf=0, neginf=0)
+    
+    #divided =  np.where((result['crowd_sat'] - result['min_crowd_sat'] ) < 0, 0, (result['crowd_sat'] - result['min_crowd_sat'] ))
+    #divisor = np.array(result['max_crowd_sat'] - result['min_crowd_sat'])
+    #result['rel_crowd_sat'] = np.nan_to_num(divided.reshape(len(divided),1)/divisor.reshape(len(divisor),1), posinf=0, neginf=0)
+    
+    res_kalai['rel_satisfaction_sum'] = res_kalai['rel_expert_sat'] + res_kalai['rel_crowd_sat']
+    res_kalai['rel_satisfaction_area'] = res_kalai['rel_expert_sat'] * res_kalai['rel_crowd_sat']
     
     return res_kalai
-#res_baseline=res_weighted
-def relative_detail_satisfaction_baseline(res_baseline, max_satisfaction):
+# (result['expert_sat'] - result['min_expert_sat']).sort_values() 
+# (result['crowd_sat'] - result['min_crowd_sat'] ).sort_values()
+# (result['max_expert_sat'] - result['min_expert_sat']).sort_values()
+# (result['max_crowd_sat'] - result['min_crowd_sat']).sort_values()
+# res_baseline=res_weighted
+def relative_detail_satisfaction_baseline(res_baseline, ref_satisfaction):
     s = [col for col in res_baseline.columns if 'sat' in col]
     exp = [col for col in s if col.startswith('expert')]    
     crd = [col for col in s if col.startswith('crowd')] 
@@ -286,11 +310,20 @@ def relative_detail_satisfaction_baseline(res_baseline, max_satisfaction):
     
     for c in exp:
         name = c.split('-')[1]
-        res_baseline['rel_expert-' + name] = res_baseline[c]/max_satisfaction['max_expert_sat']
+        res_baseline['rel_expert-' + name] = res_baseline[c]/ref_satisfaction['max_expert_sat']
+        #divided = np.where((res_baseline[c] - ref_satisfaction['min_expert_sat']) < 0, 0, (res_baseline[c] - ref_satisfaction['min_expert_sat']))
+        #divisor = np.array(ref_satisfaction['max_expert_sat'] - ref_satisfaction['min_expert_sat'])
+        
+        #res_baseline['rel_expert-' + name] = np.nan_to_num(divided/divisor, posinf=0, neginf=0)
         
     for c in crd:
         name = c.split('-')[1]
-        res_baseline['rel_crowd-' + name] = res_baseline[c]/max_satisfaction['max_crowd_sat']
+        res_baseline['rel_crowd-' + name] = res_baseline[c]/ref_satisfaction['max_crowd_sat']
+        #divided = np.where((res_baseline[c] - ref_satisfaction['min_crowd_sat']) < 0, 0, (res_baseline[c] - ref_satisfaction['min_crowd_sat']))
+        #divisor = np.array(ref_satisfaction['max_crowd_sat'] - ref_satisfaction['min_crowd_sat'])
+        
+        
+        #res_baseline['rel_crowd-' + name] = np.nan_to_num(divided/divisor, posinf=0, neginf=0)
         
     for c in adds:
         #print('Column name is: ', c)
@@ -298,16 +331,16 @@ def relative_detail_satisfaction_baseline(res_baseline, max_satisfaction):
         #print('Splited coolum name is: ', name)
         #print('Final column name is: ', 'rel_sum-' + name)
         #print('------------------------------------------------------')
-        res_baseline['rel_sum-' + name] = res_baseline[c]/max_satisfaction['max_satisfaction_sum']
-        
+        #res_baseline['rel_sum-' + name] = res_baseline[c]/max_satisfaction['max_satisfaction_sum']
+        res_baseline['rel_sat_sum-' + name] = res_baseline['rel_expert-' + name] + res_baseline['rel_crowd-' + name]
     for c in area:
         #print('Column name is: ', c)
         name = c.split('-')[1]
         #print('Splited coolum name is: ', name)
         #print('Final column name is: ', 'rel_sat_area-' + name)
         #print('------------------------------------------------------')
-        res_baseline['rel_area-' + name] = res_baseline[c]/max_satisfaction['max_satisfaction_area']
-    
+        #res_baseline['rel_area-' + name] = res_baseline[c]/ref_satisfaction['max_satisfaction_area']
+        res_baseline['rel_sat_area-' + name] = res_baseline['rel_expert-' + name] * res_baseline['rel_crowd-' + name]
     rel_exp = [col for col in res_baseline.columns if col.startswith('rel_expert')]    
     rel_crd = [col for col in res_baseline.columns if col.startswith('rel_crowd')]
     

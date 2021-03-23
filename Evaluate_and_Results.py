@@ -16,10 +16,10 @@ from Optimize_Grades import nash_solution
 from Optimize_Grades import calculate_satisfaction_absolute
 
 
-def nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bnds, lambda_expert = 0.5):
+def nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bnds, lambda_expert = 0.5, alt_attribute = 'alternative_id'):
 
     #res_nash = pd.DataFrame(columns=(['alternative_id', 'lambda_exp', 'vote', 'expert_sat', 'crowd_sat', 'area']))
-    res_nash = pd.DataFrame(columns=(['alternative_id', 'lambda_exp', 'optimal_grade']))
+    res_nash = pd.DataFrame(columns=([alt_attribute, 'lambda_exp', 'optimal_grade']))
     #res_nash[['lambda_exp', 'vote', 'area']] = np.nan
    
     w_lambda_1 = lambda_expert
@@ -27,9 +27,9 @@ def nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bnds, lam
     w_vote = 1
     w = [w_lambda_1, w_lambda_2, w_vote]
     # i = 0
-    for i in list(df_alt_votes.alternative_id.unique()):
+    for i in list(df_alt_votes[alt_attribute].unique()):
         #res = optimal_grades[(optimal_grades['alternative_id'] == i) & (optimal_grades['alpha'] == lambda_expert)]
-        votes = df_alt_votes[df_alt_votes['alternative_id'] == i]
+        votes = df_alt_votes[df_alt_votes[alt_attribute] == i]
         v_expert = np.array(votes[expert_ids])[0]
         v_crowd = np.array(votes[crowd_ids])[0]
         
@@ -44,7 +44,7 @@ def nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bnds, lam
         
         res_nash = res_nash.append(pd.Series(list(n), index=res_nash.columns ), ignore_index=True)
     
-    res_nash = calculate_satisfaction_absolute(df_alt_votes, res_nash, max_grade, expert_ids, crowd_ids)
+    res_nash = calculate_satisfaction_absolute(df_alt_votes, res_nash, max_grade, expert_ids, crowd_ids, alt_attribute)
     
     res_nash['satisfaction_area'] = res_nash['expert_sat'] * res_nash['crowd_sat']
     res_nash['satisfaction_sum'] = res_nash['expert_sat'] + res_nash['crowd_sat']
@@ -59,12 +59,12 @@ def nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bnds, lam
 ###### kalai
 # df_alt_votes = df_alt_votes[df_alt_votes['alternative_id'] == 0]
 # optimal_grades =  result_optm_abs
-def kalai_results(df_alt_votes, optimal_grades, max_grade, crowd_ids, expert_ids):
-    res_kalai = pd.DataFrame(columns=(['alternative_id', 'lambda_exp', 'vote', 'expert_sat', 'crowd_sat', 'satisfaction_area'])) 
+def kalai_results(df_alt_votes, optimal_grades, max_grade, crowd_ids, expert_ids, alt_attribute = 'alternative_id' ):
+    res_kalai = pd.DataFrame(columns=([alt_attribute, 'lambda_exp', 'vote', 'expert_sat', 'crowd_sat', 'satisfaction_area'])) 
     #i = 582
-    for i in list(df_alt_votes.alternative_id.unique()):
-        res = optimal_grades[(optimal_grades['alternative_id'] == i) &(optimal_grades['alpha'].isin([0,1]))]
-        votes = df_alt_votes[df_alt_votes['alternative_id'] == i]
+    for i in list(df_alt_votes[alt_attribute].unique()):
+        res = optimal_grades[(optimal_grades[alt_attribute] == i) &(optimal_grades['alpha'].isin([0,1]))]
+        votes = df_alt_votes[df_alt_votes[alt_attribute] == i]
         
         if i%100==0:
             print('Alternative to optimize: ', str(i))
@@ -187,19 +187,19 @@ def satisfaction_calculation_weighted_methods(df_alt_votes, max_grade, crowd_ids
         #res_data = res_data.append(res, ignore_index = True)
     return df_res
 
-def get_min_and_max_satisfactions(result_optm_abs):        
-    max_satisfaction = result_optm_abs[['alternative_id', 'crowd_sat', 'expert_sat']].groupby(by='alternative_id' ).agg('max').reset_index()
+def get_min_and_max_satisfactions(result_optm_abs, alt_attribute = 'alternative_id'):        
+    max_satisfaction = result_optm_abs[[alt_attribute, 'crowd_sat', 'expert_sat']].groupby(by=alt_attribute ).agg('max').reset_index()
     max_satisfaction = max_satisfaction.rename(columns = {'crowd_sat':'max_crowd_sat', 'expert_sat' : 'max_expert_sat'})
     max_satisfaction['max_satisfaction_sum'] = max_satisfaction['max_crowd_sat'] + max_satisfaction['max_expert_sat']
     max_satisfaction['max_satisfaction_area'] = max_satisfaction['max_crowd_sat'] * max_satisfaction['max_expert_sat']
     
     
-    min_satisfaction = result_optm_abs[['alternative_id', 'crowd_sat', 'expert_sat']].groupby(by='alternative_id' ).agg('min').reset_index()
+    min_satisfaction = result_optm_abs[[alt_attribute, 'crowd_sat', 'expert_sat']].groupby(by= alt_attribute).agg('min').reset_index()
     min_satisfaction = min_satisfaction.rename(columns = {'crowd_sat':'min_crowd_sat', 'expert_sat' : 'min_expert_sat'})
     min_satisfaction['min_satisfaction_sum'] = min_satisfaction['min_crowd_sat'] + min_satisfaction['min_expert_sat']
     min_satisfaction['min_satisfaction_area'] = min_satisfaction['min_crowd_sat'] * min_satisfaction['min_expert_sat']
         
-    ref_satisfaction = pd.merge(max_satisfaction, min_satisfaction, on = 'alternative_id')   
+    ref_satisfaction = pd.merge(max_satisfaction, min_satisfaction, on = alt_attribute)   
 
     return min_satisfaction, max_satisfaction, ref_satisfaction     
         

@@ -186,6 +186,25 @@ def remap_answers(df_crowd):
             
     return data
 
+def remap_answers_tx(df):
+    """
+    The procedure contains a dictionary that maps answers to numeric values
+    Return:
+        Data set with remapped answers
+    Input:
+        Data set with textual answers
+    """
+    #### task_1_question ----- 'Rate your impression of the credibility of this article'
+    ans_dicts = {1:'Важно је', 2:'Неутралан', 3: 'Није ми важно' }
+    
+    #### task_2_question ---- 'Is the language of the headline extremely negative, extremely positive, or somewhere in the middle?'
+    data = df.copy()
+    
+    for key, values in ans_dicts.items():
+        data.replace({values : key}, inplace = True) 
+            
+    return data
+
 def prepare_expert_data(data_folder, alternative_map):
     """
     The procedure is used to read and prepare experts answers

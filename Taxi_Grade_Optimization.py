@@ -1,0 +1,250 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Mar 21 20:34:54 2021
+
+@author: akovacevic
+"""
+
+import os
+os.chdir('F:\PROJEKTI\ONR_FON\Experiments\Expert_Crowd_Grade_Optimization')
+
+#### Import libreries
+import warnings
+warnings.simplefilter('ignore')
+ 
+
+import pandas as pd
+import numpy as np
+#import time
+
+from Load_taxi_data import Load_Data
+
+from Data_Prepare import get_aggregated_data
+from Data_Prepare import create_ratings_and_mapping
+from Data_Prepare import get_user_ids_from_mapping
+
+from Optimize_Grades import calculate_satisfaction_absolute
+from Optimize_Grades import lambda_const
+
+from Evaluate_and_Results import nash_results
+from Evaluate_and_Results import kalai_results
+from Evaluate_and_Results import calculate_baseline_stats_satisfaction
+from Evaluate_and_Results import get_min_and_max_satisfactions
+
+from Evaluate_and_Results import relative_detail_satisfaction_nash
+from Evaluate_and_Results import relative_detail_satisfaction_kalai
+from Evaluate_and_Results import relative_detail_satisfaction_baseline
+
+
+question_map, alt_names, df_crowd, df_traffic = Load_Data()
+
+df_selected_expert = df_traffic
+expert_type = 'traffic'
+
+df_expert_crowd = pd.concat([df_selected_expert, df_crowd], ignore_index=True)
+#n_crowd = len(df_crowd['voter'].unique())
+
+############# Aggregate data
+crowd_agg = get_aggregated_data(df_crowd, alt_names, index_column = 'voter', column= 'question_id', value = 'rate')
+expert_agg = get_aggregated_data(df_selected_expert, alt_names, index_column = 'voter', column= 'question_id', value = 'rate')
+expert_crowd_agg = get_aggregated_data(df_expert_crowd, alt_names, index_column = 'voter', column= 'question_id', value = 'rate')
+
+############ Create user mapping
+
+_, _, voter_map = create_ratings_and_mapping(expert_crowd_agg, alt_names, voter_col = 'voter')
+
+##### replace voters name with ids in all dataframes
+df_crowd = pd.merge( voter_map,df_crowd, how = 'inner', on = 'voter').drop('voter', axis = 1)
+df_expert_crowd = pd.merge( voter_map, df_expert_crowd, how = 'inner', on = 'voter').drop('voter', axis = 1)
+df_selected_expert = pd.merge(voter_map,  df_selected_expert, how = 'inner', on = 'voter').drop('voter', axis = 1)
+crowd_agg = pd.merge(voter_map,  crowd_agg, how = 'inner', on = 'voter').drop('voter', axis = 1)
+expert_agg = pd.merge(voter_map,  expert_agg, how = 'inner', on = 'voter').drop('voter', axis = 1)
+
+#### extract expert and crowd ids for similarity
+expert_ids = get_user_ids_from_mapping(voter_map, 'expert')
+crowd_ids = get_user_ids_from_mapping(voter_map, 'crowd')
+
+df_alt_votes = get_aggregated_data(pd.concat([df_crowd, df_selected_expert]), voter_map['voter_id'], 
+                                   index_column = 'question_id', column= 'voter_id', value = 'rate')
+
+max_grade = 3
+
+'''
+    Optimize grade 
+'''
+
+result_optm_abs0 = pd.DataFrame(df_alt_votes['question_id'], columns=(['question_id']))
+result_optm_abs1 = pd.DataFrame(df_alt_votes['question_id'], columns=(['question_id']))
+
+result_optm_abs0['optimal_grade'] = df_alt_votes[crowd_ids].apply(lambda x: np.median(x), axis =1)
+result_optm_abs0['alpha'] = 0.0
+
+result_optm_abs1['optimal_grade']  = df_alt_votes[expert_ids].apply(lambda x: np.median(x), axis =1)
+result_optm_abs1['alpha'] = 1.0
+
+result_optm_abs = pd.concat([result_optm_abs0, result_optm_abs1])
+
+result_optm_abs = calculate_satisfaction_absolute(df_alt_votes, result_optm_abs, max_grade, expert_ids, crowd_ids, 'question_id')
+
+#result_optm_abs.to_csv('results_tx/absolute_optimization_grades_and_sat_' + expert_type + '.csv')
+del(result_optm_abs0)
+del(result_optm_abs1)
+
+'''
+    Nash solution
+'''
+cons = [{'type':'eq', 'fun': lambda_const}]
+bnds = ((0.01, 0.99), (0.01, 0.99), (1, max_grade))
+
+res_nash = nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bnds, lambda_expert = 0.5, alt_attribute='question_id')
+res_nash = res_nash[['question_id','lambda_exp', 'optimal_grade', 'expert_sat', 'crowd_sat', 'satisfaction_area', 'satisfaction_sum']]
+
+'''
+    Kali Solution
+'''
+res_kalai = kalai_results(df_alt_votes, result_optm_abs, max_grade, crowd_ids, expert_ids, 'question_id')
+res_kalai = res_kalai[['question_id','lambda_exp', 'vote', 'expert_sat', 'crowd_sat', 'satisfaction_area', 'satisfaction_sum']]
+
+'''
+   Baseline methods
+'''
+res_baseline = calculate_baseline_stats_satisfaction( df_alt_votes, max_grade, crowd_ids, 
+                                          expert_ids ,stats = ['np.mean', 'np.median', 'mode'])
+
+res_baseline = res_baseline[['question_id', 'crowd_mean', 'expert_mean', 'mean', 'crowd_median',
+       'expert_median', 'median', 'crowd_majority', 'expert_majority',
+       'majority', 'expert_sat-crowd_mean', 'crowd_sat-crowd_mean',
+       'satisfaction_area-crowd_mean', 'satisfaction_sum-crowd_mean',
+       'expert_sat-expert_mean', 'crowd_sat-expert_mean',
+       'satisfaction_area-expert_mean', 'satisfaction_sum-expert_mean',
+       'expert_sat-mean', 'crowd_sat-mean', 'satisfaction_area-mean',
+       'satisfaction_sum-mean', 'expert_sat-crowd_median',
+       'crowd_sat-crowd_median', 'satisfaction_area-crowd_median',
+       'satisfaction_sum-crowd_median', 'expert_sat-expert_median',
+       'crowd_sat-expert_median', 'satisfaction_area-expert_median',
+       'satisfaction_sum-expert_median', 'expert_sat-median',
+       'crowd_sat-median', 'satisfaction_area-median',
+       'satisfaction_sum-median', 'expert_sat-crowd_majority',
+       'crowd_sat-crowd_majority', 'satisfaction_area-crowd_majority',
+       'satisfaction_sum-crowd_majority', 'expert_sat-expert_majority',
+       'crowd_sat-expert_majority', 'satisfaction_area-expert_majority',
+       'satisfaction_sum-expert_majority', 'expert_sat-majority',
+       'crowd_sat-majority', 'satisfaction_area-majority',
+       'satisfaction_sum-majority']]
+
+_, _, ref_satisfaction =  get_min_and_max_satisfactions(result_optm_abs, alt_attribute = 'question_id')
+
+
+#sat_col = [col for col in res_kalai.columns if 'sat' in col and 'diff' not in col]
+#maxsat_col = [col for col in max_satisfaction.columns if 'sat' in col]
+
+###### add relative satisfection by each alternative
+res_nash = relative_detail_satisfaction_nash(res_nash, ref_satisfaction)
+res_kalai = relative_detail_satisfaction_kalai(res_kalai, ref_satisfaction)
+res_baseline = relative_detail_satisfaction_baseline(res_baseline, ref_satisfaction)
+
+
+'''
+    Result Analysis
+'''
+
+#from Data_Prepare import all_mathods_optimal_grades
+from Evaluate_and_Results import add_method_name
+
+res_nash = add_method_name(res_nash, '-nash', keep_same = {'question_id'})
+res_kalai = add_method_name(res_kalai, '-kalai', keep_same = {'question_id'})
+
+df_list = [res_nash, res_kalai, res_baseline ]    
+#df_crowd_sample = df_crowd.groupby('vote', group_keys = False).apply(lambda x: x.sample(min(len(x),3)))
+from functools import reduce
+df_all_detail = reduce(lambda left,right: pd.merge(left,right,on='question_id'), df_list)
+
+#df_all_detail['expert_std']  = np.std(df_alt_votes[expert_ids], axis = 1)
+#df_all_detail['crowd_std']  = np.std(df_alt_votes[crowd_ids], axis = 1)
+
+exp_median = np.array(df_all_detail['expert_median']).reshape(len(df_all_detail), 1)
+crd_median = np.array(df_all_detail['crowd_median']).reshape(len(df_all_detail), 1)
+
+df_all_detail['expert_median_diff']  = np.mean(np.abs(np.array(df_alt_votes[expert_ids]) - exp_median), axis = 1, keepdims=True)
+df_all_detail['crowd_median_diff']  = np.mean(np.abs(np.array(df_alt_votes[crowd_ids]) - crd_median), axis = 1, keepdims=True)
+
+
+crowd_sat = [col for col in df_all_detail.columns if col.startswith('crowd_sat')] 
+expert_sat = [col for col in df_all_detail.columns if col.startswith('expert_sat')] 
+
+max_expert = ['expert_sat-expert_median']
+max_crowd = ['crowd_sat-crowd_median']
+
+
+for c , e  in zip(crowd_sat, expert_sat):
+    name = e.split('-')[1]
+    assert(e.split('-')[1] == c.split('-')[1])
+    #print('crowd_sat: ', c, '; ' 'expert_sat: ',   e, ';' ,'method: ', name)
+    
+    
+    n = len(df_all_detail)
+    
+    method_cols = [e, c]
+    
+    max_df = df_all_detail[['expert_sat-expert_median', 'crowd_sat-crowd_median']].rename(columns = {'expert_sat-expert_median':'max_expert_sat', 'crowd_sat-crowd_median':'max_crowd_sat'})
+    
+    help_df = df_all_detail[method_cols] 
+    help_df = pd.merge(help_df, max_df, left_index=True, right_index=True)
+    
+    
+
+    help_df['maxmax'] = max_df.idxmax(axis = 1)    
+
+    def kalai_score(row, name = name):
+        if row['maxmax'] == 'max_expert_sat':
+            return (row['expert_sat-'+name]/row['max_expert_sat'] - row['crowd_sat-'+name]/row['max_crowd_sat'] )
+        else:
+            return (row['crowd_sat-'+name]/row['max_crowd_sat'] - row['expert_sat-'+name]/row['max_expert_sat'])
+    
+   
+    df_all_detail['sum_gain-' + name] =  help_df.apply(kalai_score, axis = 1) #+ 1) #+  df_all_detail['satisfaction_sum-' + name]
+    
+   
+    
+df_all_detail['median-diff'] = np.abs(df_all_detail['expert_median'] - df_all_detail['crowd_median'])
+
+
+df_all_detail.to_csv('results_tx/results_detail_all_'+ expert_type +'.csv')
+
+
+measure_cols = [col for col in df_all_detail.columns if 'sat' in col or 'area' in col or 'sum_gain' in col]
+#measure_cols = [col for col in measure_cols if  'rel_' not in col]
+
+crd_sat = [col for col in measure_cols if  'crowd_sat'  in col and 'rel' not in col]
+exp_sat = [col for col in measure_cols if  'expert_sat'  in col]
+sum_sat = [col for col in measure_cols if  'satisfaction_sum'  in col]
+area_sat = [col for col in measure_cols if  'area'  in col]
+gain_sat = [col for col in measure_cols if  'sum_gain'  in col]
+rel_sat = [col for col in measure_cols if 'rel_sat' in col]
+
+crd = pd.melt(df_all_detail, id_vars=['question_id'], value_vars=crd_sat, var_name = 'method', value_name = 'crowd_sat')
+crd['method'] = crd['method'].str.split('-').apply(lambda x: x[1]) 
+
+exp = pd.melt(df_all_detail, id_vars=['question_id'], value_vars=exp_sat, var_name = 'method', value_name = 'expert_sat')
+exp['method'] = exp['method'].str.split('-').apply(lambda x: x[1]) 
+
+tot = pd.melt(df_all_detail, id_vars=['question_id'], value_vars=sum_sat, var_name = 'method', value_name = 'sum_sat')
+tot['method'] = tot['method'].str.split('-').apply(lambda x: x[1]) 
+
+area = pd.melt(df_all_detail, id_vars=['question_id'], value_vars=area_sat, var_name = 'method', value_name = 'area_sat')
+area['method'] = area['method'].str.split('-').apply(lambda x: x[1]) 
+
+gain = pd.melt(df_all_detail, id_vars=['question_id'], value_vars=gain_sat, var_name = 'method', value_name = 'diff_gain_sat')
+gain['method'] = gain['method'].str.split('-').apply(lambda x: x[1]) 
+
+all_detail_results = reduce(lambda left,right: pd.merge(left,right,on=['question_id', 'method']), [crd,exp,tot,area,gain])
+all_detail_metrics = pd.merge(all_detail_results, df_all_detail[['question_id', 'median-diff']], on = 'question_id')
+
+
+all_detail_metrics.to_csv('results_tx/results_all_detail_metrics_'+ expert_type +'.csv')
+question_map.to_excel('results_tx/question_map.xlsx')  
+
+e = 4.9
+c= 3.61
+print(e+c)
+print(e*c)

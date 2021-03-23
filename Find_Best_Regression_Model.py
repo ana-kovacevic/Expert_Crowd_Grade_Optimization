@@ -28,6 +28,7 @@ from sklearn.tree import DecisionTreeRegressor
 
 from sklearn.metrics import r2_score
 from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_absolute_error
 #from sklearn.metrics import neg_root_mean_squared_error
 
 
@@ -53,7 +54,7 @@ def optimize_predictive_model_and_predict(df_tr, df_ts, expert_type, folds = 3 )
     
     param_grid_gbr = {
         'n_estimators' : [1, 3, 5, 7, 10, 50, 100, 200, 500]
-        ,'max_depth':[1, 3, 5, 7, 10, 15, 30]
+        ,'max_depth':[1, 3, 5, 7, 10]
         ,'learning_rate':[0.01, 0.1, 0.05, 0.25, 0.5, 1]
         #, 'min_samples_split': [5, 50, 100]
         } 
@@ -72,11 +73,11 @@ def optimize_predictive_model_and_predict(df_tr, df_ts, expert_type, folds = 3 )
     folds=folds;    
     
     gs_LR_wc = GridSearchCV(estimator = lm, param_grid = param_grid_lr, 
-                            n_jobs = 1,cv= folds, scoring = 'neg_root_mean_squared_error', verbose = 1, return_train_score=False)
+                            n_jobs = 1,cv= folds, scoring = 'neg_mean_absolute_error', verbose = 1, return_train_score=False)
     gs_RF_wc = GridSearchCV(estimator = rf, param_grid = param_grid_rf, 
-                            n_jobs = 1,cv= folds, scoring = 'neg_root_mean_squared_error', verbose = 1, return_train_score=False)
+                            n_jobs = 1,cv= folds, scoring = 'neg_mean_absolute_error', verbose = 1, return_train_score=False)
     gs_GBM_wc = GridSearchCV(estimator= gbr, param_grid = param_grid_gbr, 
-                             n_jobs = 1,cv=folds, scoring = 'neg_root_mean_squared_error', verbose = 1, return_train_score=False)
+                             n_jobs = 1,cv=folds, scoring = 'neg_mean_absolute_error', verbose = 1, return_train_score=False)
 #                             n_jobs = 1,cv=folds, scoring = my_scorer.prc_score, return_train_score=False)
 # split into train and test
     X = df_tr.loc[:, df_tr.columns != 'rate']
@@ -99,12 +100,12 @@ def optimize_predictive_model_and_predict(df_tr, df_ts, expert_type, folds = 3 )
         print(gs)
         model = gs.fit(X_train, y_train)
         print('Best params: %s' % model.best_params_)
-        print('Best training neg_root_mean_squared_error: %.3f' % model.best_score_)
+        print('Best training neg_mean_absolute_error: %.3f' % model.best_score_)
         #model.best_estimator_
         y_pred = model.predict(X_test)
         #y_probas = model.predict_proba(X_test)
         #y_probas = y_probas[:,1]
-        print('Test set sq root mse score for best params: %.3f ' % np.sqrt(mean_squared_error(y_test, y_pred)))
+        print('Test set neg_mean_absolute_error score for best params: %.3f ' % np.sqrt(mean_squared_error(y_test, y_pred)))
         test_error = np.sqrt(mean_squared_error(y_test, y_pred))
     	   # Track best (highest test accuracy) model
         mn = grid_dict[idx]
@@ -116,8 +117,8 @@ def optimize_predictive_model_and_predict(df_tr, df_ts, expert_type, folds = 3 )
         pickle._dump(gs.cv_results_, open(dict_name, "wb"))
         
         result = result.append({'DataSet': expert_type, 'Model': mn, 'best_params':model.best_params_, 'score_train':model.best_score_ , 'score_test':test_error},  ignore_index=True)
-        if mean_squared_error(y_test, y_pred) < best_mse:
-            best_mse = mean_squared_error(y_test, y_pred)
+        if mean_absolute_error(y_test, y_pred) < best_mse:
+            best_mse = mean_absolute_error(y_test, y_pred)
             best_gs = gs
             best_mod = idx
     print('\nModel with best test set metrics: %s' % grid_dict[best_mod])

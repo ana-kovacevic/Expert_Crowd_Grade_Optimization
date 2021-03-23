@@ -70,8 +70,8 @@ alternative_map, alt_names, df_crowd, _, _ , df_science, df_journal = read_data_
 df_science['rate']= df_science['rate'].astype('float')
 df_journal['rate']= df_journal['rate'].astype('float')
 
-df_selected_expert = df_science #  df_journal #
-expert_type = 'science' # 'journal' #   
+df_selected_expert = df_science #  df_journal # 
+expert_type = 'science' #  'journal' #  
 
 alts_dict = dict(zip(alternative_map['alternative_id'] , alternative_map['alternative_name']))
 #### create mapping of all avaible users
@@ -142,6 +142,9 @@ end = time.time()
 print('Total time to find embeddings (in min): ', str((end - start)/60)) ### 26.766 min 
 print(best_params_als)
 
+model_als = best_params_als['model']
+num_factors = best_params_als['n_factors']
+
 import json
 best_params_als.pop('model', None)
 with open('results/best_params_als_'+ expert_type + '.json', 'w') as fp:
@@ -149,8 +152,7 @@ with open('results/best_params_als_'+ expert_type + '.json', 'w') as fp:
 
 
 
-model_als = best_params_als['model']
-num_factors = best_params_als['n_factors']
+
 
 #pd.DataFrame(best_params_als).to_csv('results/ALS_best_params_' + expert_type + '.csv')
 

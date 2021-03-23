@@ -313,14 +313,14 @@ def optimize_grade_absolute_dist(df_alt_votes, expert_ids, crowd_ids, alphas):
 
 # optimal_grades = result_optimization_abs
 
-def calculate_satisfaction_absolute(df_alt_votes, optimal_grades, max_grade, expert_ids, crowd_ids): 
+def calculate_satisfaction_absolute(df_alt_votes, optimal_grades, max_grade, expert_ids, crowd_ids, alt_attribute): 
     
     res_data = optimal_grades.copy()
     
     #n_experts = len(expert_ids)
     #n_crowd = len(crowd_ids)
     
-    data = pd.merge(res_data, df_alt_votes, on = 'alternative_id')
+    data = pd.merge(res_data, df_alt_votes, on = alt_attribute)
     
     data['expert_sat'] = np.mean(
         max_grade - np.abs(np.array(data[expert_ids]) - np.array(data['optimal_grade']).reshape(data.shape[0],1) )
@@ -330,9 +330,9 @@ def calculate_satisfaction_absolute(df_alt_votes, optimal_grades, max_grade, exp
         , axis = 1)
 
     if 'alpha' in list(data.columns):
-        res_data = data[['alternative_id', 'alpha', 'optimal_grade', 'expert_sat', 'crowd_sat']]
+        res_data = data[[alt_attribute, 'alpha', 'optimal_grade', 'expert_sat', 'crowd_sat']]
     else:
-        res_data = data[['alternative_id', 'lambda_exp', 'optimal_grade', 'expert_sat', 'crowd_sat']]
+        res_data = data[[alt_attribute, 'lambda_exp', 'optimal_grade', 'expert_sat', 'crowd_sat']]
     #data[['alternative_id', 'alpha', 'optimal_grade', 'fun_val', 'expert_sat', 'crowd_sat']]
     
     return res_data

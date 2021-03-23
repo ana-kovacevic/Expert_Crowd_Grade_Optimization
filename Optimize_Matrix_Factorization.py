@@ -49,6 +49,7 @@ def find_best_parms_for_ALS(latent_factors, regularizations, iter_array, train, 
                 best_params['test_mse'] = MF_ALS.test_mse[min_idx]
                 best_params['model'] = MF_ALS
                 print ('New optimal hyperparameters for ALS')
+                
                 #print( pd.Series(best_params))
 
     #best_als_model = best_params['model']

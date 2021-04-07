@@ -137,6 +137,12 @@ def calculate_avg_distance_from_optimal(expert_rates, crowd_rates, optimal_grade
 # lambda_crowd = (1 - lambda_expert)
 def objective_function_grades_absolute(expert_votes, crowd_votes, lambda_expert, lambda_crowd):
     # GOAL FUNCTION
+    expert_votes = expert_votes[np.logical_not(np.isnan(expert_votes))]
+    expert_votes =  expert_votes.reshape(len(expert_votes),1)
+    
+    crowd_votes = crowd_votes[np.logical_not(np.isnan(crowd_votes))]
+    crowd_votes = crowd_votes.reshape(len(crowd_votes), 1)
+    
     w_expert = np.repeat(lambda_expert/len(expert_votes), len(expert_votes))
     w_crowd = np.repeat(lambda_crowd/len(crowd_votes), len(crowd_votes))
     w_grade = np.array([0])
@@ -311,7 +317,7 @@ def optimize_grade_absolute_dist(df_alt_votes, expert_ids, crowd_ids, alphas):
        
        
 
-# optimal_grades = result_optimization_abs
+# optimal_grades = result_optm_abs
 
 def calculate_satisfaction_absolute(df_alt_votes, optimal_grades, max_grade, expert_ids, crowd_ids, alt_attribute): 
     
@@ -322,10 +328,10 @@ def calculate_satisfaction_absolute(df_alt_votes, optimal_grades, max_grade, exp
     
     data = pd.merge(res_data, df_alt_votes, on = alt_attribute)
     
-    data['expert_sat'] = np.mean(
+    data['expert_sat'] = np.nanmean(
         max_grade - np.abs(np.array(data[expert_ids]) - np.array(data['optimal_grade']).reshape(data.shape[0],1) )
         , axis = 1)
-    data['crowd_sat'] = np.mean(
+    data['crowd_sat'] = np.nanmean(
         max_grade - np.abs(np.array(data[crowd_ids]) - np.array(data['optimal_grade']).reshape(data.shape[0], 1) )
         , axis = 1)
 

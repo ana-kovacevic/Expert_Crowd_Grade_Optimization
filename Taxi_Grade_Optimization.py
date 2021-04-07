@@ -17,11 +17,7 @@ import pandas as pd
 import numpy as np
 #import time
 
-from Load_taxi_data import Load_Data
-
-from Data_Prepare import get_aggregated_data
-from Data_Prepare import create_ratings_and_mapping
-from Data_Prepare import get_user_ids_from_mapping
+from Load_taxi_data import Load_TX_Data
 
 from Optimize_Grades import calculate_satisfaction_absolute
 from Optimize_Grades import lambda_const
@@ -35,37 +31,24 @@ from Evaluate_and_Results import relative_detail_satisfaction_nash
 from Evaluate_and_Results import relative_detail_satisfaction_kalai
 from Evaluate_and_Results import relative_detail_satisfaction_baseline
 
+'''
+data_dict = Load_TX_Data(expert_type = 'driver')
+expert_type = 'driver'
+'''
 
-question_map, alt_names, df_crowd, df_traffic = Load_Data()
-
-df_selected_expert = df_traffic
+data_dict = Load_TX_Data(expert_type = 'traffic')
 expert_type = 'traffic'
 
-df_expert_crowd = pd.concat([df_selected_expert, df_crowd], ignore_index=True)
-#n_crowd = len(df_crowd['voter'].unique())
 
-############# Aggregate data
-crowd_agg = get_aggregated_data(df_crowd, alt_names, index_column = 'voter', column= 'question_id', value = 'rate')
-expert_agg = get_aggregated_data(df_selected_expert, alt_names, index_column = 'voter', column= 'question_id', value = 'rate')
-expert_crowd_agg = get_aggregated_data(df_expert_crowd, alt_names, index_column = 'voter', column= 'question_id', value = 'rate')
+df_selected_expert = data_dict['df_selected_expert']
+#df_crowd = data_dict['df_crowd'] 
 
-############ Create user mapping
+expert_ids = data_dict['expert_ids']
+crowd_ids = data_dict['crowd_ids']
 
-_, _, voter_map = create_ratings_and_mapping(expert_crowd_agg, alt_names, voter_col = 'voter')
 
-##### replace voters name with ids in all dataframes
-df_crowd = pd.merge( voter_map,df_crowd, how = 'inner', on = 'voter').drop('voter', axis = 1)
-df_expert_crowd = pd.merge( voter_map, df_expert_crowd, how = 'inner', on = 'voter').drop('voter', axis = 1)
-df_selected_expert = pd.merge(voter_map,  df_selected_expert, how = 'inner', on = 'voter').drop('voter', axis = 1)
-crowd_agg = pd.merge(voter_map,  crowd_agg, how = 'inner', on = 'voter').drop('voter', axis = 1)
-expert_agg = pd.merge(voter_map,  expert_agg, how = 'inner', on = 'voter').drop('voter', axis = 1)
-
-#### extract expert and crowd ids for similarity
-expert_ids = get_user_ids_from_mapping(voter_map, 'expert')
-crowd_ids = get_user_ids_from_mapping(voter_map, 'crowd')
-
-df_alt_votes = get_aggregated_data(pd.concat([df_crowd, df_selected_expert]), voter_map['voter_id'], 
-                                   index_column = 'question_id', column= 'voter_id', value = 'rate')
+#####
+df_alt_votes = data_dict['df_alt_votes']
 
 max_grade = 3
 
@@ -76,10 +59,10 @@ max_grade = 3
 result_optm_abs0 = pd.DataFrame(df_alt_votes['question_id'], columns=(['question_id']))
 result_optm_abs1 = pd.DataFrame(df_alt_votes['question_id'], columns=(['question_id']))
 
-result_optm_abs0['optimal_grade'] = df_alt_votes[crowd_ids].apply(lambda x: np.median(x), axis =1)
+result_optm_abs0['optimal_grade'] = df_alt_votes[crowd_ids].apply(lambda x: np.nanmedian(x), axis =1)
 result_optm_abs0['alpha'] = 0.0
 
-result_optm_abs1['optimal_grade']  = df_alt_votes[expert_ids].apply(lambda x: np.median(x), axis =1)
+result_optm_abs1['optimal_grade']  = df_alt_votes[expert_ids].apply(lambda x: np.nanmedian(x), axis =1)
 result_optm_abs1['alpha'] = 1.0
 
 result_optm_abs = pd.concat([result_optm_abs0, result_optm_abs1])
@@ -109,7 +92,7 @@ res_kalai = res_kalai[['question_id','lambda_exp', 'vote', 'expert_sat', 'crowd_
    Baseline methods
 '''
 res_baseline = calculate_baseline_stats_satisfaction( df_alt_votes, max_grade, crowd_ids, 
-                                          expert_ids ,stats = ['np.mean', 'np.median', 'mode'])
+                                          expert_ids ,stats = ['np.nanmean', 'np.nanmedian', 'mode'])
 
 res_baseline = res_baseline[['question_id', 'crowd_mean', 'expert_mean', 'mean', 'crowd_median',
        'expert_median', 'median', 'crowd_majority', 'expert_majority',
@@ -216,11 +199,13 @@ measure_cols = [col for col in df_all_detail.columns if 'sat' in col or 'area' i
 #measure_cols = [col for col in measure_cols if  'rel_' not in col]
 
 crd_sat = [col for col in measure_cols if  'crowd_sat'  in col and 'rel' not in col]
-exp_sat = [col for col in measure_cols if  'expert_sat'  in col]
-sum_sat = [col for col in measure_cols if  'satisfaction_sum'  in col]
-area_sat = [col for col in measure_cols if  'area'  in col]
+exp_sat = [col for col in measure_cols if  'expert_sat'  in col and 'rel' not in col]
+sum_sat = [col for col in measure_cols if  'satisfaction_sum'  in col and 'rel' not in col]
+area_sat = [col for col in measure_cols if  'area'  in col and 'rel' not in col]
 gain_sat = [col for col in measure_cols if  'sum_gain'  in col]
 rel_sat = [col for col in measure_cols if 'rel_sat' in col]
+rel_area = [col for col in rel_sat if 'area' in col]
+rel_sum = [col for col in rel_sat if 'sum' in col]
 
 crd = pd.melt(df_all_detail, id_vars=['question_id'], value_vars=crd_sat, var_name = 'method', value_name = 'crowd_sat')
 crd['method'] = crd['method'].str.split('-').apply(lambda x: x[1]) 
@@ -237,14 +222,16 @@ area['method'] = area['method'].str.split('-').apply(lambda x: x[1])
 gain = pd.melt(df_all_detail, id_vars=['question_id'], value_vars=gain_sat, var_name = 'method', value_name = 'diff_gain_sat')
 gain['method'] = gain['method'].str.split('-').apply(lambda x: x[1]) 
 
-all_detail_results = reduce(lambda left,right: pd.merge(left,right,on=['question_id', 'method']), [crd,exp,tot,area,gain])
+r_area = pd.melt(df_all_detail, id_vars=['question_id'], value_vars=rel_area, var_name = 'method', value_name = 'rel_area_sat')
+r_area['method'] = r_area['method'].str.split('-').apply(lambda x: x[1])
+
+r_sum = pd.melt(df_all_detail, id_vars=['question_id'], value_vars=rel_sum, var_name = 'method', value_name = 'rel_sum_sat')
+r_sum['method'] = r_sum['method'].str.split('-').apply(lambda x: x[1])
+
+all_detail_results = reduce(lambda left,right: pd.merge(left,right,on=['question_id', 'method']), [crd,exp,tot,area,gain, r_area, r_sum])
 all_detail_metrics = pd.merge(all_detail_results, df_all_detail[['question_id', 'median-diff']], on = 'question_id')
 
-
+df_all_detail.to_csv('results_tx/results_detail_all_'+ expert_type +'.csv')
 all_detail_metrics.to_csv('results_tx/results_all_detail_metrics_'+ expert_type +'.csv')
-question_map.to_excel('results_tx/question_map.xlsx')  
+#question_map.to_excel('results_tx/question_map.xlsx')  
 
-e = 4.9
-c= 3.61
-print(e+c)
-print(e*c)

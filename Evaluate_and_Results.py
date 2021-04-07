@@ -15,7 +15,7 @@ from Optimize_Grades import maximization_kalai_smorodinsky
 from Optimize_Grades import nash_solution
 from Optimize_Grades import calculate_satisfaction_absolute
 
-
+# alt_attribute = 'question_id'
 def nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bnds, lambda_expert = 0.5, alt_attribute = 'alternative_id'):
 
     #res_nash = pd.DataFrame(columns=(['alternative_id', 'lambda_exp', 'vote', 'expert_sat', 'crowd_sat', 'area']))
@@ -32,6 +32,10 @@ def nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bnds, lam
         votes = df_alt_votes[df_alt_votes[alt_attribute] == i]
         v_expert = np.array(votes[expert_ids])[0]
         v_crowd = np.array(votes[crowd_ids])[0]
+        
+        v_expert  = v_expert[np.logical_not(np.isnan(v_expert))]
+        v_crowd  = v_crowd[np.logical_not(np.isnan(v_crowd))]
+   
         
         if i%100==0:
             print('Alternative to optimize: ', str(i))
@@ -59,9 +63,10 @@ def nash_results(df_alt_votes, max_grade, crowd_ids, expert_ids, cons, bnds, lam
 ###### kalai
 # df_alt_votes = df_alt_votes[df_alt_votes['alternative_id'] == 0]
 # optimal_grades =  result_optm_abs
+# alt_attribute = 'question_id'
 def kalai_results(df_alt_votes, optimal_grades, max_grade, crowd_ids, expert_ids, alt_attribute = 'alternative_id' ):
     res_kalai = pd.DataFrame(columns=([alt_attribute, 'lambda_exp', 'vote', 'expert_sat', 'crowd_sat', 'satisfaction_area'])) 
-    #i = 582
+    #i = 0
     for i in list(df_alt_votes[alt_attribute].unique()):
         res = optimal_grades[(optimal_grades[alt_attribute] == i) &(optimal_grades['alpha'].isin([0,1]))]
         votes = df_alt_votes[df_alt_votes[alt_attribute] == i]
@@ -87,7 +92,7 @@ def kalai_results(df_alt_votes, optimal_grades, max_grade, crowd_ids, expert_ids
 #### base line
 
 def calculate_baseline_stats_satisfaction(df_alt_votes, max_grade, crowd_ids, 
-                                          expert_ids ,stats = ['np.mean', 'np.median', 'mode']):
+                                          expert_ids ,stats = ['np.nanmean', 'np.nanmedian', 'mode']):
     """
     
 
@@ -100,7 +105,7 @@ def calculate_baseline_stats_satisfaction(df_alt_votes, max_grade, crowd_ids,
     expert_ids : TYPE
         DESCRIPTION.
     stats : TYPE, optional
-        DESCRIPTION. The default is ['np.mean', 'np.median', 'mode'].
+        DESCRIPTION. The default is ['np.nanmean', 'np.nanmedian', 'mode'].
 
     Returns
     -------
@@ -112,19 +117,21 @@ def calculate_baseline_stats_satisfaction(df_alt_votes, max_grade, crowd_ids,
     data = df_alt_votes.copy() #pd.DataFrame(df_alt_votes['alternative_id'], columns = ['alternative_id'])
     
     #### aggregate  votes based on given statistic measure
-    #i = 0
+    #i = 2
     for i in range(len(stats)):
         name = stats[i]
         part_name = stats[i].split('.')[-1]
+        if 'nan' in part_name:
+            part_name = part_name.split('nan')[-1]
         
         if part_name != 'mode':
             data['crowd_' + part_name]= data[crowd_ids].apply(lambda x: eval(name)(x), axis =1)
             data['expert_' + part_name] = data[expert_ids].apply(lambda x: eval(name)(x), axis =1)
             data[part_name] = data[crowd_ids + expert_ids].apply(lambda x: eval(name)(x), axis = 1)
         else:
-            data['crowd_majority']=data[crowd_ids].round().mode(axis = 1)[0]
-            data['expert_majority']= data[expert_ids].round().mode(axis=1)[0]
-            data['majority'] = data[crowd_ids + expert_ids].round().mode(axis = 1)[0]
+            data['crowd_majority']=data[crowd_ids].round().mode(dropna=True, axis = 1)[0]
+            data['expert_majority']= data[expert_ids].round().mode(dropna=True, axis=1)[0]
+            data['majority'] = data[crowd_ids + expert_ids].round().mode(dropna=True, axis = 1)[0]
     
     
     # mean
@@ -137,8 +144,8 @@ def calculate_baseline_stats_satisfaction(df_alt_votes, max_grade, crowd_ids,
         expert_votes = np.array(data[expert_ids]).reshape(len(data),data[expert_ids].shape[1])
         crowd_votes = np.array(data[crowd_ids]).reshape(len(data),data[crowd_ids].shape[1])
         
-        expert_sat = np.mean(max_grade - np.abs(expert_votes - grade), axis = 1)
-        crowd_sat = np.mean(max_grade - np.abs(crowd_votes - grade), axis = 1)
+        expert_sat = np.nanmean(max_grade - np.abs(expert_votes - grade), axis = 1)
+        crowd_sat = np.nanmean(max_grade - np.abs(crowd_votes - grade), axis = 1)
         
         sum_sat = expert_sat+crowd_sat
         product_sat = expert_sat*crowd_sat

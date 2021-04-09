@@ -132,9 +132,12 @@ def Load_TX_Data(expert_type):
     df_expert = df_expert.dropna()
     df_driver = df_driver.dropna()
     ## filter possible errors and remove missing values
-    df_expert = df_expert.loc[df_expert['rate']<=3]    
-    df_driver = df_driver.loc[df_driver['rate']<=3]
-    df_crowd = df_crowd.loc[df_crowd['rate']<=3]   
+    df_expert = df_expert.loc[(df_expert['rate']<=3) & (df_expert['rate']>0)]    
+    df_driver = df_driver.loc[(df_driver['rate']<=3) & (df_driver['rate']>0)]
+    df_crowd = df_crowd.loc[(df_crowd['rate']<=3) & (df_crowd['rate']>0)] 
+    
+    
+    all_votes = df_crowd.append(df_expert).append(df_driver)
     
     if expert_type == 'driver':
         df_selected_expert = df_driver
@@ -158,8 +161,8 @@ def Load_TX_Data(expert_type):
     df_crowd = pd.merge( voter_map,df_crowd, how = 'inner', on = 'voter').drop('voter', axis = 1)
     df_expert_crowd = pd.merge( voter_map, df_expert_crowd, how = 'inner', on = 'voter').drop('voter', axis = 1)
     df_selected_expert = pd.merge(voter_map,  df_selected_expert, how = 'inner', on = 'voter').drop('voter', axis = 1)
-    crowd_agg = pd.merge(voter_map,  crowd_agg, how = 'inner', on = 'voter').drop('voter', axis = 1)
     
+    crowd_agg = pd.merge(voter_map,  crowd_agg, how = 'inner', on = 'voter').drop('voter', axis = 1)
     cr_voter = crowd_agg['voter_id']
     crowd_agg = crowd_agg[alt_names].replace(0, np.nan)
     crowd_agg['voter_id'] = cr_voter
@@ -184,6 +187,7 @@ def Load_TX_Data(expert_type):
                    'df_selected_expert' : df_selected_expert,
                    'df_driver': df_driver,
                    'df_traffic': df_expert,
+                   'all_votes' : all_votes,
                    'expert_ids' : expert_ids,
                    'crowd_ids' : crowd_ids,
                    'df_alt_votes' : df_alt_votes}

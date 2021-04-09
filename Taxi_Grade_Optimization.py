@@ -21,6 +21,7 @@ from Load_taxi_data import Load_TX_Data
 
 from Optimize_Grades import calculate_satisfaction_absolute
 from Optimize_Grades import lambda_const
+from Optimize_Grades import optimize_grade_absolute_dist
 
 from Evaluate_and_Results import nash_results
 from Evaluate_and_Results import kalai_results
@@ -31,14 +32,13 @@ from Evaluate_and_Results import relative_detail_satisfaction_nash
 from Evaluate_and_Results import relative_detail_satisfaction_kalai
 from Evaluate_and_Results import relative_detail_satisfaction_baseline
 
-'''
-data_dict = Load_TX_Data(expert_type = 'driver')
-expert_type = 'driver'
-'''
+
+# data_dict = Load_TX_Data(expert_type = 'driver')
+# expert_type = 'driver'
+
 
 data_dict = Load_TX_Data(expert_type = 'traffic')
 expert_type = 'traffic'
-
 
 df_selected_expert = data_dict['df_selected_expert']
 #df_crowd = data_dict['df_crowd'] 
@@ -50,11 +50,18 @@ crowd_ids = data_dict['crowd_ids']
 #####
 df_alt_votes = data_dict['df_alt_votes']
 
+#data_dict['question_map']
+
 max_grade = 3
+# alphas = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+#alphas = [0.0, 0.5, 1.0]
+
 
 '''
     Optimize grade 
 '''
+#opt_res = optimize_grade_absolute_dist(df_alt_votes, expert_ids, crowd_ids, alphas, 'question_id' ) 
+
 
 result_optm_abs0 = pd.DataFrame(df_alt_votes['question_id'], columns=(['question_id']))
 result_optm_abs1 = pd.DataFrame(df_alt_votes['question_id'], columns=(['question_id']))
@@ -72,6 +79,7 @@ result_optm_abs = calculate_satisfaction_absolute(df_alt_votes, result_optm_abs,
 #result_optm_abs.to_csv('results_tx/absolute_optimization_grades_and_sat_' + expert_type + '.csv')
 del(result_optm_abs0)
 del(result_optm_abs1)
+
 
 '''
     Nash solution
@@ -234,4 +242,24 @@ all_detail_metrics = pd.merge(all_detail_results, df_all_detail[['question_id', 
 df_all_detail.to_csv('results_tx/results_detail_all_'+ expert_type +'.csv')
 all_detail_metrics.to_csv('results_tx/results_all_detail_metrics_'+ expert_type +'.csv')
 #question_map.to_excel('results_tx/question_map.xlsx')  
+'''
+                crowd_sat	expert_sat
+crowd_median	    2.318797	    1.933333	
+expert_median	2.269173 	2.400000
 
+expert_s_1 = 2.400000
+expert_s_2 = 1.933333	
+crowd_s_1 = 2.269173
+crowd_s_2 = 2.318797	
+
+'''
+from Optimize_Grades import objective_function_grades_absolute    
+lambda_expert = 0.5247991944261486
+expert_type   
+org_votes = df_alt_votes[df_alt_votes['question_id'] == 8]
+vote = objective_function_grades_absolute(np.array(org_votes[expert_ids]).reshape(len(expert_ids),1), 
+                                              np.array(org_votes[crowd_ids]).reshape(len(crowd_ids),1),  
+                                              lambda_expert, 1 - lambda_expert)[0]
+
+
+vote 

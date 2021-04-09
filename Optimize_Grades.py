@@ -131,17 +131,18 @@ def calculate_avg_distance_from_optimal(expert_rates, crowd_rates, optimal_grade
 #def get_vote(expert_votes, crowd_votes, lambda_expert, lambda_crowd):
     
 # expert_votes = np.array(df_votes[expert_ids]).reshape(len(expert_ids),1)
-#expert_votes.shape
-#crowd_votes.shape
+# expert_votes.shape
+# crowd_votes.shape
 # crowd_votes =  np.array(df_votes[crowd_ids]).reshape(len(crowd_ids),1)
+# lambda_expert = 0.5
 # lambda_crowd = (1 - lambda_expert)
 def objective_function_grades_absolute(expert_votes, crowd_votes, lambda_expert, lambda_crowd):
     # GOAL FUNCTION
     expert_votes = expert_votes[np.logical_not(np.isnan(expert_votes))]
-    expert_votes =  expert_votes.reshape(len(expert_votes),1)
+    expert_votes =  np.array(expert_votes).reshape(len(expert_votes),1)
     
     crowd_votes = crowd_votes[np.logical_not(np.isnan(crowd_votes))]
-    crowd_votes = crowd_votes.reshape(len(crowd_votes), 1)
+    crowd_votes = np.array(crowd_votes).reshape(len(crowd_votes), 1)
     
     w_expert = np.repeat(lambda_expert/len(expert_votes), len(expert_votes))
     w_crowd = np.repeat(lambda_crowd/len(crowd_votes), len(crowd_votes))
@@ -286,24 +287,30 @@ def maximization_kalai_smorodinsky(optimal_grades, max_grade, df_votes, crowd_id
     
     return lambda_expert, vote, expert_satisfaction, crowd_satisfaction, area
 
-
-def optimize_grade_absolute_dist(df_alt_votes, expert_ids, crowd_ids, alphas):
+# alt_attribute = 'question_id'
+def optimize_grade_absolute_dist(df_alt_votes, expert_ids, crowd_ids, alphas, alt_attribute = 'alternative_id'):
     
-    result_data = pd.DataFrame(columns=['alternative_id', 'alpha', 'optimal_grade', 'fun_val'])
 
+    result_data = pd.DataFrame(columns=[alt_attribute, 'alpha', 'optimal_grade', 'fun_val']).astype({alt_attribute: 'int64', 'alpha':'float64', 'optimal_grade' : 'float64', 'fun_val' : 'float64'})
+    
+        
     #data = data.iloc[0:5, :]
-    num_alt = len(df_alt_votes['alternative_id'].unique())
+    num_alt = len(df_alt_votes[alt_attribute].unique())
     start_idex = 0
-
+    
+    # alp = 0.0 
     for alp in alphas:
         end_index = start_idex + num_alt
+        
 
-        result_data = pd.concat([result_data, pd.DataFrame(df_alt_votes['alternative_id'])],ignore_index=True)
+        result_data = pd.concat([result_data, pd.DataFrame(df_alt_votes[alt_attribute])],ignore_index=True)
         #df.apply(lambda x: func(x['col1'],x['col2']),axis=1)
         res_list = list(
            df_alt_votes.apply(lambda x: objective_function_grades_absolute(
                                      x[expert_ids], x[crowd_ids], alp, 1 - alp), axis = 1) )
-       
+        #expert_votes = df_alt_votes.apply(lambda x:  x[expert_ids], axis = 1).iloc[0,:] 
+        #crowd_votes = df_alt_votes.apply(lambda x:  x[crowd_ids], axis = 1).iloc[0,:] 
+        
         result_data.iloc[start_idex:end_index, 1] = alp   
        
         opt = pd.DataFrame( res_list, columns=(['optimal_grade','fun_val']))

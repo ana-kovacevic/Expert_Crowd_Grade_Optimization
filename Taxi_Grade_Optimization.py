@@ -254,7 +254,7 @@ crowd_s_2 = 2.318797
 
 '''
 from Optimize_Grades import objective_function_grades_absolute    
-lambda_expert = 0.5247991944261486
+lambda_expert = 0.4
 expert_type   
 org_votes = df_alt_votes[df_alt_votes['question_id'] == 8]
 vote = objective_function_grades_absolute(np.array(org_votes[expert_ids]).reshape(len(expert_ids),1), 

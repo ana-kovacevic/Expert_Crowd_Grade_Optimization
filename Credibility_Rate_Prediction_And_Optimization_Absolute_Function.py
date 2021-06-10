@@ -11,8 +11,8 @@ os.chdir('F:\PROJEKTI\ONR_FON\Experiments\Expert_Crowd_Grade_Optimization')
 import warnings
 warnings.simplefilter('ignore')
  
-import sys
-sys.path.append('F:\PROJEKTI\ONR_FON\Experiments\Expert-Crowd')
+# import sys
+# sys.path.append('F:\PROJEKTI\ONR_FON\Experiments\Expert-Crowd')
 
 #from Matrix_Factorization import ExplicitMF
 #import Matrix_Factorization
@@ -32,7 +32,7 @@ from Data_Prepare import train_test_split
 from Data_Prepare import calculate_sparsity
 from Data_Prepare import get_user_ids_from_mapping
 
-from Optimize_Matrix_Factorization import find_best_parms_for_ALS
+from Optimize_Matrix_Factorization import find_best_parms_for_ALS ###
 
 from PrepareData_SupervisedApproach import create_train_data_for_predicting_rates
 from PrepareData_SupervisedApproach import create_test_data_for_predicting_rates
@@ -350,7 +350,7 @@ all_sum_res.to_csv('results/results_overall_relative_'+ expert_type +'.csv')
 #################### Result analysis - lower uncertanty
     
 #df_crowd_sample = df_crowd.groupby('vote', group_keys = False).apply(lambda x: x.sample(min(len(x),3)))
-
+'''
 ##################################### Plots
 
 import matplotlib.pyplot as plt
@@ -437,3 +437,4 @@ df_crowd[df_crowd['alternative_id'].isin(num_by_alt)]
 
 only_crowd_alts = num_by_alt[num_by_alt['_merge']== 'left_only'][['alternative_id', 'crowd_number']]
 both_alts = num_by_alt[num_by_alt['_merge']== 'both'][['alternative_id', 'crowd_number', 'expert_number']]
+'''

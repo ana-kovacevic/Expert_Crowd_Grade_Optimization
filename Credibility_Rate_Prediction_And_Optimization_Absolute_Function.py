@@ -50,7 +50,7 @@ from Optimize_Grades import calculate_satisfaction_absolute
 #from Optimize_Grades import nash_solution
 from Optimize_Grades import lambda_const
 
-from Quick_Data_Exploration import plot_medians
+#from Quick_Data_Exploration import plot_medians
 
 from Evaluate_and_Results import nash_results
 from Evaluate_and_Results import kalai_results
@@ -60,7 +60,7 @@ from Evaluate_and_Results import relative_detail_satisfaction_nash
 from Evaluate_and_Results import relative_detail_satisfaction_kalai
 from Evaluate_and_Results import relative_detail_satisfaction_baseline
 from Evaluate_and_Results import relative_overall_satisfaction
-from Evaluate_and_Results import add_median_variation
+#from Evaluate_and_Results import add_median_variation
 from Evaluate_and_Results import get_min_and_max_satisfactions
 
 '''

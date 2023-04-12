@@ -32,13 +32,18 @@ from Evaluate_and_Results import relative_detail_satisfaction_nash
 from Evaluate_and_Results import relative_detail_satisfaction_kalai
 from Evaluate_and_Results import relative_detail_satisfaction_baseline
 
+import sys
+sys.path.append('F:\PROJEKTI\ONR_FON\Experiments\Expert-Crowd')
 
-# data_dict = Load_TX_Data(expert_type = 'driver')
-# expert_type = 'driver'
+import Clustering as clust
 
 
-data_dict = Load_TX_Data(expert_type = 'traffic')
-expert_type = 'traffic'
+data_dict = Load_TX_Data(expert_type = 'driver')
+expert_type = 'driver'
+
+
+# data_dict = Load_TX_Data(expert_type = 'traffic')
+# expert_type = 'traffic'
 
 df_selected_expert = data_dict['df_selected_expert']
 #df_crowd = data_dict['df_crowd'] 
@@ -46,7 +51,7 @@ df_selected_expert = data_dict['df_selected_expert']
 expert_ids = data_dict['expert_ids']
 crowd_ids = data_dict['crowd_ids']
 
-
+# 
 #####
 df_alt_votes = data_dict['df_alt_votes']
 
@@ -55,6 +60,50 @@ df_alt_votes = data_dict['df_alt_votes']
 max_grade = 3
 # alphas = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 #alphas = [0.0, 0.5, 1.0]
+
+
+"""
+        #########################################  CLUSTERING 
+        ###### Custering on factor data
+"""
+        ####### Optimize num of clusters 
+        
+    
+best_params_clust, silhouette_dict = clust.optimize_k_number(df_selected_expert[['question_id', 'rate']], kmin = 2, kmax = 11)
+#best_params_clust, silhouette_dict = optimize_k_number(user_factors, kmin = 2, kmax = 11)
+
+expert_centroids = create_cluster_experts (user_factors[expert_ids], best_params_clust['model'])[0]
+num_experts = best_params_clust['n_k']
+
+#        df.apply(lambda x: x['alternative_id'] , axis = 1) 
+#        data.apply(lambda x: True if x['overlap_num']== i else False, axis=1)
+#        
+clust_labels =  best_params_clust['model'].labels_
+#        voters_lookup[['voter_id']].iloc[:,expert_ids]
+
+#        for i in expert_ids:
+#            print(voters_lookup['voter_id'][i].value.isin(expert_ids))
+#        a = voters_lookup.copy()
+#        a = a.re
+#        voters_lookup[voters_lookup['voter_id'].isin(expert_ids)] 
+#        
+#        voters_lookup.apply(lambda x: clust_label for clust_label in clust_labels if x['voter_id'] == i for i in expert_ids )
+
+"""
+######################################## CLUSTER Quality on All Data
+"""
+
+best_params_clust_all, silhouette_dict_all = optimize_k_number(user_factors, kmin = 2, kmax = 11)
+
+all_centroids = create_cluster_experts (user_factors, best_params_clust_all['model'])[0]
+
+#best_params_clust_all['model'].inertia_
+num_clusters = best_params_clust_all['n_k']
+
+clust_labels_all =  best_params_clust_all['model'].labels_
+
+cluster_quality = determnin_cluster_quality(user_factors, voters_lookup, clust_labels_all, all_centroids)
+mesures_included = ['entropy', 'N', 'compactenss']
 
 
 '''

@@ -73,7 +73,7 @@ df_journal['rate']= df_journal['rate'].astype('float')
 df_selected_expert = df_science #  df_journal # 
 expert_type = 'science' #  'journal' #  
 
-alts_dict = dict(zip(alternative_map['alternative_id'] , alternative_map['alternative_name']))
+alts_dict = dict(zip(alternative_map['alternative_id'] , alternative_map['media_url']))
 #### create mapping of all avaible users
 #voter_map = crete_voter_map([df_selected_expert, df_crowd])
 #voter_map = crete_voter_map([df_crowd])

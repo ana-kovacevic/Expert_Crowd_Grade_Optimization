@@ -7,13 +7,33 @@ Created on Sun Mar 21 20:36:22 2021
 import pandas as pd
 import numpy as np
 
-from Data_Prepare import remap_answers_tx
-from Data_Prepare import get_aggregated_data
-from Data_Prepare import create_ratings_and_mapping
-from Data_Prepare import get_user_ids_from_mapping
+from Prepare_Data import remap_answers_tx
+from Prepare_Data import get_aggregated_data
+from Prepare_Data import create_ratings_and_mapping
+from Prepare_Data import get_user_ids_from_mapping
 
 def Load_TX_Data(expert_type):
+    """
+    The procedure is used to read taxi data. It reads and cleans data for crowd, 
+    driver expert and traffic expert.
     
+    Return:
+        Dictionary of question_map - dictionary of question names and question ids,
+                      alt_names - list of alternative ids,
+                      df_crowd - trans data frame of crowd answers,
+                      df_selected_expert - trans data frame of selected expert answers,
+                      df_driver - trans data frame of drivers answers,
+                      df_expert - trans data frame of traffic expert answers,
+                      all_votes - trans data frame of all users' answers (crowd, traffic experts, and drivers),
+                      expert_ids - ids of expert users,
+                      crowd_ids - ids of crowd users,
+                      voter_map - id name map of all voters (expert and crowd),
+                      df_alt_votes - data frame where alternatives are represented in rows and
+                                      users in columns
+    Input:
+        parameter expert_type (string value) that could take the following values: 
+            traffic, driver, all
+    """
     ### Load Data
     exp = pd.read_excel(open('TX_data/BG/Eksperti_Anketa_BG.xlsx', 'rb'), sheet_name='OdgovoriIzUpitnika')  
     drv = pd.read_excel(open('TX_data/BG/Vozaci_Anketa_BG.xlsx', 'rb'),  sheet_name='OdgovoriIzUpitnika')
@@ -131,18 +151,20 @@ def Load_TX_Data(expert_type):
     df_crowd = df_crowd.dropna()
     df_expert = df_expert.dropna()
     df_driver = df_driver.dropna()
+    
     ## filter possible errors and remove missing values
     df_expert = df_expert.loc[(df_expert['rate']<=3) & (df_expert['rate']>0)]    
     df_driver = df_driver.loc[(df_driver['rate']<=3) & (df_driver['rate']>0)]
     df_crowd = df_crowd.loc[(df_crowd['rate']<=3) & (df_crowd['rate']>0)] 
     
-    
     all_votes = df_crowd.append(df_expert).append(df_driver)
     
     if expert_type == 'driver':
         df_selected_expert = df_driver
+    elif expert_type == 'traffic':
+        df_selected_expert = df_expert
     else:
-        df_selected_expert = df_expert  
+          df_selected_expert = pd.concat([df_expert, df_driver], ignore_index=True)
 
 
     df_expert_crowd = pd.concat([df_selected_expert, df_crowd], ignore_index=True)
@@ -154,7 +176,6 @@ def Load_TX_Data(expert_type):
     expert_crowd_agg = get_aggregated_data(df_expert_crowd, alt_names, index_column = 'voter', column= 'question_id', value = 'rate')
     
     ############ Create user mapping
-    
     _, _, voter_map = create_ratings_and_mapping(expert_crowd_agg, alt_names, voter_col = 'voter')
     
     ##### replace voters name with ids in all dataframes
@@ -171,10 +192,12 @@ def Load_TX_Data(expert_type):
     exp_voter = expert_agg['voter_id']
     expert_agg = expert_agg[alt_names].replace(0, np.nan)
     expert_agg['voter_id'] = exp_voter
+    
     #### extract expert and crowd ids for similarity
     expert_ids = get_user_ids_from_mapping(voter_map, 'expert')
     crowd_ids = get_user_ids_from_mapping(voter_map, 'crowd')
     
+    ### create data set where alternatives represents rows and voterids are in colums
     df_alt_votes = get_aggregated_data(pd.concat([df_crowd, df_selected_expert]), voter_map['voter_id'], 
                                    index_column = 'question_id', column= 'voter_id', value = 'rate')
     qu = df_alt_votes['question_id']
@@ -190,6 +213,7 @@ def Load_TX_Data(expert_type):
                    'all_votes' : all_votes,
                    'expert_ids' : expert_ids,
                    'crowd_ids' : crowd_ids,
+                   'voter_map' : voter_map,
                    'df_alt_votes' : df_alt_votes}
 
     return result_dict

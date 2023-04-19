@@ -55,11 +55,12 @@ def read_data_credibility():
 
     ##### save map of all alternatives
     alternative_map = crete_alternatives_map(crowd_all)
-    alts_dict = dict(zip(alternative_map['alternative_id'] , alternative_map['alternative_name']))
+    #alternative_map =  alternative_map.rename(columns={"media_url": "alternative_name"})
+    alts_dict = dict(zip(alternative_map['alternative_id'] , alternative_map['media_url']))
 
     #### Read and prepare expert data
     df_expert, df_science, df_journal = prepare_expert_data(data_folder_2020, alternative_map)
-    exp_alt = list(df_expert['alternative_id'].unique()) # alts that experts gave opinion on
+    exp_alt = list(df_expert['vote'].unique()) # alts that experts gave opinion on
     exp_urls = [alts_dict.get(e,'') for e in exp_alt]  # alts that experts gave opinion on
 
     #### filter alternatives same as experts

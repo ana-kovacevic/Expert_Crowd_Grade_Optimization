@@ -18,10 +18,11 @@ import numpy as np
 #import time
 
 from Load_taxi_data import Load_TX_Data
+#from Prepare_Data import get_user_ids_from_mapping
 
 from Optimize_Grades import calculate_satisfaction_absolute
 from Optimize_Grades import lambda_const
-from Optimize_Grades import optimize_grade_absolute_dist
+#from Optimize_Grades import optimize_grade_absolute_dist
 
 from Evaluate_and_Results import nash_results
 from Evaluate_and_Results import kalai_results
@@ -32,18 +33,19 @@ from Evaluate_and_Results import relative_detail_satisfaction_nash
 from Evaluate_and_Results import relative_detail_satisfaction_kalai
 from Evaluate_and_Results import relative_detail_satisfaction_baseline
 
-import sys
-sys.path.append('F:\PROJEKTI\ONR_FON\Experiments\Expert-Crowd')
+# import sys
+# sys.path.append('F:\PROJEKTI\ONR_FON\Experiments\Expert-Crowd')
 
-import Clustering as clust
+# import Clustering as clust
+from Cluster_Votes import optimize_k_number
+from Cluster_Votes import create_cluster_experts
+from Cluster_Votes import determnin_cluster_quality
 
-
-data_dict = Load_TX_Data(expert_type = 'driver')
-expert_type = 'driver'
-
-
-# data_dict = Load_TX_Data(expert_type = 'traffic')
 # expert_type = 'traffic'
+# expert_type = 'all'
+expert_type = 'driver'
+data_dict = Load_TX_Data(expert_type = expert_type)
+
 
 df_selected_expert = data_dict['df_selected_expert']
 #df_crowd = data_dict['df_crowd'] 
@@ -51,10 +53,23 @@ df_selected_expert = data_dict['df_selected_expert']
 expert_ids = data_dict['expert_ids']
 crowd_ids = data_dict['crowd_ids']
 
-# 
+
 #####
 df_alt_votes = data_dict['df_alt_votes']
 
+df_user_votes = df_alt_votes.loc[:, df_alt_votes.columns != 'question_id'].T.reset_index()
+df_expert = df_user_votes[df_user_votes['voter_id'].isin(expert_ids)]
+df_expert = df_expert.dropna()
+
+
+non_na_ids = df_expert['voter_id']
+df_expert = df_expert.loc[:, df_expert.columns != 'voter_id']
+
+
+voters_lookup = data_dict['voter_map'][data_dict['voter_map']['voter_id'].isin(non_na_ids)]
+
+
+#df_user_votes[df_user_votes['voter_id'].isin(expert_ids)]
 #data_dict['question_map']
 
 max_grade = 3
@@ -64,46 +79,25 @@ max_grade = 3
 
 """
         #########################################  CLUSTERING 
-        ###### Custering on factor data
+       
 """
         ####### Optimize num of clusters 
         
     
-best_params_clust, silhouette_dict = clust.optimize_k_number(df_selected_expert[['question_id', 'rate']], kmin = 2, kmax = 11)
+best_params_clust, silhouette_dict = optimize_k_number(df_expert, kmin = 2, kmax = 11)
 #best_params_clust, silhouette_dict = optimize_k_number(user_factors, kmin = 2, kmax = 11)
 
-expert_centroids = create_cluster_experts (user_factors[expert_ids], best_params_clust['model'])[0]
+
+expert_centroids = create_cluster_experts(df_expert, best_params_clust['model'])[0]
 num_experts = best_params_clust['n_k']
 
-#        df.apply(lambda x: x['alternative_id'] , axis = 1) 
-#        data.apply(lambda x: True if x['overlap_num']== i else False, axis=1)
-#        
+    
 clust_labels =  best_params_clust['model'].labels_
-#        voters_lookup[['voter_id']].iloc[:,expert_ids]
 
-#        for i in expert_ids:
-#            print(voters_lookup['voter_id'][i].value.isin(expert_ids))
-#        a = voters_lookup.copy()
-#        a = a.re
-#        voters_lookup[voters_lookup['voter_id'].isin(expert_ids)] 
-#        
-#        voters_lookup.apply(lambda x: clust_label for clust_label in clust_labels if x['voter_id'] == i for i in expert_ids )
 
-"""
-######################################## CLUSTER Quality on All Data
-"""
-
-best_params_clust_all, silhouette_dict_all = optimize_k_number(user_factors, kmin = 2, kmax = 11)
-
-all_centroids = create_cluster_experts (user_factors, best_params_clust_all['model'])[0]
-
-#best_params_clust_all['model'].inertia_
-num_clusters = best_params_clust_all['n_k']
-
-clust_labels_all =  best_params_clust_all['model'].labels_
-
-cluster_quality = determnin_cluster_quality(user_factors, voters_lookup, clust_labels_all, all_centroids)
+cluster_quality = determnin_cluster_quality(df_expert, voters_lookup, clust_labels, expert_centroids)
 mesures_included = ['entropy', 'N', 'compactenss']
+
 
 
 '''

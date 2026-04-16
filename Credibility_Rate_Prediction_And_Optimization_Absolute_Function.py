@@ -6,7 +6,7 @@ Created on Sat Nov  7 19:57:48 2020
 """
 
 import os
-os.chdir('F:\PROJEKTI\ONR_FON\Experiments\Expert_Crowd_Grade_Optimization')
+#os.chdir(os.path.dirname(os.path.abspath(__file__)))
 #### Import libreries
 import warnings
 warnings.simplefilter('ignore')
@@ -25,12 +25,12 @@ import time
 from Load_credibility_data import read_data_credibility
 
 
-#from Data_Prepare import crete_voter_map
-from Data_Prepare import get_aggregated_data
-from Data_Prepare import create_ratings_and_mapping
-from Data_Prepare import train_test_split
-from Data_Prepare import calculate_sparsity
-from Data_Prepare import get_user_ids_from_mapping
+#from Prepare_Data import crete_voter_map
+from Prepare_Data import get_aggregated_data
+from Prepare_Data import create_ratings_and_mapping
+from Prepare_Data import train_test_split
+from Prepare_Data import calculate_sparsity
+from Prepare_Data import get_user_ids_from_mapping
 
 from Optimize_Matrix_Factorization import find_best_parms_for_ALS ###
 
@@ -66,7 +66,9 @@ from Evaluate_and_Results import get_min_and_max_satisfactions
 '''
     Read Data
 '''
-alternative_map, alt_names, df_crowd, _, _ , df_science, df_journal = read_data_credibility()
+
+
+df_crowd, df_science, df_journal, alternative_map,  alts_dict, alt_names, _,  _ = read_data_credibility()
 df_science['rate']= df_science['rate'].astype('float')
 df_journal['rate']= df_journal['rate'].astype('float')
 

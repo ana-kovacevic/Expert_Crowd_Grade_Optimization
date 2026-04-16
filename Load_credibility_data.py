@@ -7,10 +7,10 @@ Created on Sun Nov  1 13:40:37 2020
 import pandas as pd
 import numpy as np
 
-from Data_Prepare import crete_alternatives_map
-from Data_Prepare import prepare_crowd_data
-from Data_Prepare import remap_answers
-from Data_Prepare import prepare_expert_data
+from Prepare_Data import crete_alternatives_map
+from Prepare_Data import prepare_crowd_data
+from Prepare_Data import remap_answers
+from Prepare_Data import prepare_expert_data
 
 
 
@@ -50,33 +50,48 @@ def read_data_credibility():
     ### Read crowd data
     crowd_2020 = pd.read_csv(data_folder_2020 + crowd_file_2020)
     crowd_2020 = crowd_2020.drop('Unnamed: 0', axis = 1)
-    crowd_all = pd.read_csv(data_folder_2019 + crowd_file_2019)
-    crowd_all = remap_answers(crowd_all)
-
-    ##### save map of all alternatives
-    alternative_map = crete_alternatives_map(crowd_all)
-    #alternative_map =  alternative_map.rename(columns={"media_url": "alternative_name"})
-    alts_dict = dict(zip(alternative_map['alternative_id'] , alternative_map['media_url']))
-
+    crowd_2019 = pd.read_csv(data_folder_2019 + crowd_file_2019)
+    
+    df_crowd = prepare_crowd_data(crowd_2020, crowd_2019)
+    
+    
+    
+    
     #### Read and prepare expert data
-    df_expert, df_science, df_journal = prepare_expert_data(data_folder_2020, alternative_map)
-    exp_alt = list(df_expert['vote'].unique()) # alts that experts gave opinion on
-    exp_urls = [alts_dict.get(e,'') for e in exp_alt]  # alts that experts gave opinion on
-
+    df_expert, df_science, df_journal = prepare_expert_data(data_folder_2020)
+    exp_urls = list(df_expert['URL'].unique()) # alts that experts gave opinion on
+    
+   
     #### filter alternatives same as experts
-    crowd_2020 = crowd_2020[crowd_2020['media_url'].isin(exp_urls)]
+    #crowd_2020 = crowd_2020[crowd_2020['media_url'].isin(exp_urls)]
     #merged_crowd = pd.merge(crowd_all, crowd_2020, how='left',left_on = ['annotator', 'media_url'], right_on = ['annotator', 'media_url'], indicator = True)
     #### take only users that are not part of earlier 
     #crowd_rest = crowd_all[merged_crowd['_merge'] == 'left_only']
 
-    df_crowd, alt_names = prepare_crowd_data(crowd_all, alternative_map)
-    df_crowd = remap_answers(df_crowd)
-
-    df_crowd_2020, _ = prepare_crowd_data(crowd_2020, alternative_map)
-    df_crowd_2020 = remap_answers(df_crowd_2020)
+    #### ALL DATA
+    df_all = pd.concat([df_crowd, df_expert], ignore_index=True)
+    # remove duplicates
+    df_all = df_all.drop_duplicates().reset_index(drop=True)
+    
+    ##### save map of all alternatives
+    alternative_map = crete_alternatives_map(df_all)
+    #alternative_map =  alternative_map.rename(columns={"media_url": "alternative_name"})
+    alts_dict = dict(zip(alternative_map['alternative_id'] , alternative_map['alternative_name']))
+    
+    alt_names = list(alternative_map['alternative_id'].unique())
+    alt_names.sort()
+    
+    df_all = pd.merge(df_all, alternative_map, how = 'inner', left_on = 'URL', right_on= 'alternative_name')[['voter', 'URL', 'rate', 'alternative_id']]
+    df_crowd = pd.merge(df_crowd, alternative_map, how = 'inner', left_on = 'URL', right_on= 'alternative_name')[['voter', 'URL', 'rate', 'alternative_id']]
+    df_expert = pd.merge(df_expert, alternative_map, how = 'inner', left_on = 'URL', right_on= 'alternative_name')[['voter', 'URL', 'rate', 'alternative_id']]
+    df_science = pd.merge(df_science, alternative_map, how = 'inner', left_on = 'URL', right_on= 'alternative_name')[['voter', 'URL', 'rate', 'alternative_id']]
+    df_journal = pd.merge(df_journal, alternative_map, how = 'inner', left_on = 'URL', right_on= 'alternative_name')[['voter', 'URL', 'rate', 'alternative_id']]
+    
     #crowd_rest = prepare_crowd_data(crowd_rest, alternative_map)[0] 
     #crowd_rest = remap_answers(crowd_rest)
     #alternative_map, alt_names, df_crowd, df_expert, df_crowd_2020 = read_data_credibility()
-    return alternative_map, alt_names, df_crowd, df_expert, df_crowd_2020, df_science, df_journal
+    
+    
+    return  df_crowd, df_science, df_journal, alternative_map,  alts_dict, alt_names, df_expert,  df_all
 
         

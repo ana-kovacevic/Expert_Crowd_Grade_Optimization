@@ -7,6 +7,8 @@ Created on Sat Jun 20 20:11:26 2020
 import pandas as pd
 import numpy as np
 import glob
+import os
+import re
 
 import scipy.sparse as sparse
 
@@ -61,14 +63,20 @@ ans_dicts = [qu1, qu2, qu3, qu5]
 
 
 #len(df_crowd['annotator'].unique())
-def crete_alternatives_map(data, alternative_name = 'media_url'):
+def crete_alternatives_map(data, alternative_name = 'URL'):
     
     data_copy = data.copy()
     
-    data_copy['alternative_id'] = data_copy.groupby(alternative_name).ngroup()
+    # Assign IDs (preserve original order)
+    data_copy['alternative_id'] = data_copy.groupby(alternative_name, sort=False).ngroup()
     
-    alternative_map = data_copy[[alternative_name, 'alternative_id']].drop_duplicates().reset_index().drop('index', axis = 1)
-    alternative_map = alternative_map.rename(columns = {alternative_name : 'alternative_name'})
+    # Create mapping
+    alternative_map = (
+        data_copy[[alternative_name, 'alternative_id']]
+        .drop_duplicates()
+        .rename(columns={alternative_name: 'alternative_name'})
+        .reset_index(drop=True)
+    )
     
     return alternative_map
 
@@ -99,92 +107,102 @@ def crete_voter_map(dfs, voter_name = 'voter'):
     
     return voter_map
 
-#df_crowd = crowd_rest
-def prepare_crowd_data(df_crowd, alternative_map):
+#df_crowd1 = crowd_2020
+#df_crowd2 = crowd_2019
+def prepare_crowd_data(df_crowd1, df_crowd2):
     """
     Return:
-       Crowd data in the transactional form, only for one question, in this case, 'task_1_answer'
-       List of attributes (alternatives) names
-       Data frame that contains a map of alternative description (media URL to the article) and their ids
+       Crowd data in transactional form for task_1_answer only.
     Input:
-       df_crowd: data frame, the original form of crowd data
-   """
-    #cols = ['annotator', 'contributing_users',  'media_url',   'project_id', 'report_id', 'report_title',   'tasks_resolved_count', 'type']
-    #quest_ans_cols = ['task_1_question', 'task_1_answer',  'task_2_question', 'task_2_answer', 'task_3_question', 'task_3_answer', 'task_5_question', 'task_5_answer',
-    #              'task_7_question', 'task_7_answer',  'task_8_question', 'task_8_answer',   'task_9_question','task_9_answer']
-
-    #complite_cols = cols + quest_ans_cols
-    ######## create ids for alternatives values
-    data = df_crowd.copy()
-    #data['alternative_id'] = data.groupby('media_url').ngroup()
-    #data['alternative_id']  = data['alternative_id'].astype("str")
-    #data = data.astype({"alternative_id": str})
-    # data.dtypes
-    #alternative_map = data[['media_url', 'alternative_id']].drop_duplicates().reset_index().drop('index', axis = 1)
-    #alternative_map['alternative_id']  = alternative_map['alternative_id'].astype(str)
-    #alternative_map.dtypes
-    data = pd.merge(data, alternative_map, how = 'inner', left_on = 'media_url', right_on= 'alternative_name')
-    
-    ###### Prepare crow data / select atributes, rename attributes and create label for crowd row
-    final_col = ['annotator', 'alternative_id', 'task_1_answer']
-    data = data[final_col]
-    data['annotator'] =  data['annotator'] + '_crowd'  #data.annotator.str.replace('CredCo-', 'crowd_')
-
-    
-    data = data.rename(columns={'annotator':'voter', 'task_1_answer': 'rate'})
-    data = data[data.rate.notnull()]
-    data = data.drop_duplicates()
-    
-    names = list(data['alternative_id'].unique())
-    names.sort()
-    
-    return data, names
-    
-def remap_answers(df_crowd):
+       df_crowd1, df_crowd2: original crowd dataframes
     """
-    The procedure contains a dictionary that maps answers to numeric values
-    Return:
-        Data set with remapped answers
-    Input:
-        Data set with textual answers
-    """
-    #### task_1_question ----- 'Rate your impression of the credibility of this article'
-    qu1 = {1 : 'Very low credibility', 
-    2 : 'Somewhat low credibility', 
-    3 : 'Medium credibility', 
-    4 : 'Somewhat high credibility', 
-    5 : 'Very high credibility' }
-    
-    #### task_2_question ---- 'Is the language of the headline extremely negative, extremely positive, or somewhere in the middle?'
-    qu2 = {1 : 'Extremely negative', 
-    2 : 'Somewhat negative' , 
-    3 : 'Neither negative nor positive', 
-    4 : 'Somewhat positive' ,
-    5 : 'Extremely positive' }
-    
-    #### task_3_question  ----- 'Rate the degree to which the headline is clickbait'  
-    qu3 = {1 : 'Not at all clickbaity',
-    2 : 'A little bit clickbaity' ,
-    3 : 'Medium clickbaity',
-    4 : 'Somewhat clickbaity',
-    5 : 'Very much clickbaity'}
-    
-    #### task_5_question  ---- 'Rate the representativeness of the article title'
-    qu5 = {1 : 'Completely Unrepresentative',
-    2 : 'Somewhat Unrepresentative',
-    3 : 'Medium Unrepresentative',
-    4 : 'Somewhat Representative',
-    5 : 'Completely Representative'} 
 
-    ans_dicts = [qu1, qu2, qu3, qu5]
+    crowd_1 = df_crowd1[['annotator', 'media_url', 'task_1_answer']].copy()
+    crowd_2 = df_crowd2[['annotator', 'media_url', 'task_1_answer']].copy()
+
+    crowd_1 = remap_answers(crowd_1)
+    crowd_2 = remap_answers(crowd_2)
+
+    # Union
+    df_crowd = pd.concat([crowd_1, crowd_2], ignore_index=True).drop_duplicates()
+
+    # Remove rows with missing essential values
+    df_crowd = df_crowd[df_crowd['annotator'].notna()]
+    df_crowd = df_crowd[df_crowd['task_1_answer'].notna()]
+    df_crowd = df_crowd[df_crowd['media_url'].notna()]
+
+    # Add crowd suffix
+    df_crowd['annotator'] = df_crowd['annotator'].astype(str) + '_crowd'
+
+    # Rename columns
+    df_crowd = df_crowd.rename(columns={
+        'annotator': 'voter',
+        'task_1_answer': 'rate',
+        'media_url': 'URL'
+    })
+
+    # Ensure rate is numeric
+    df_crowd['rate'] = pd.to_numeric(df_crowd['rate'], errors='coerce')
+    df_crowd = df_crowd[df_crowd['rate'].notna()]
     
-    data = df_crowd.copy()
-    
-    for di in ans_dicts:
-        for key, values in di.items():
-            data.replace({values : key}, inplace = True) 
-            
-    return data
+    df_crowd = df_crowd.reset_index(drop=True)
+
+    return df_crowd    
+def remap_answers(data):
+    """
+    Maps textual answers to numeric values.
+    """
+
+    qu1 = {
+        'Very low credibility': 1,
+        'Somewhat low credibility': 2,
+        'Medium credibility': 3,
+        'Somewhat high credibility': 4,
+        'Very high credibility': 5
+    }
+
+    qu2 = {
+        'Extremely negative': 1,
+        'Somewhat negative': 2,
+        'Neither negative nor positive': 3,
+        'Somewhat positive': 4,
+        'Extremely positive': 5
+    }
+
+    qu3 = {
+        'Not at all clickbaity': 1,
+        'A little bit clickbaity': 2,
+        'Medium clickbaity': 3,
+        'Somewhat clickbaity': 4,
+        'Very much clickbaity': 5
+    }
+
+    qu5 = {
+        'Completely Unrepresentative': 1,
+        'Somewhat Unrepresentative': 2,
+        'Medium Unrepresentative': 3,
+        'Somewhat Representative': 4,
+        'Completely Representative': 5
+    }
+
+    df = data.copy()
+
+    # Apply mapping per column (adjust column names!)
+    if 'task_1_answer' in df.columns:
+        df['task_1_answer'] = df['task_1_answer'].map(qu1)
+
+    if 'task_2_answer' in df.columns:
+        df['task_2_answer'] = df['task_2_answer'].map(qu2)
+
+    if 'task_3_answer' in df.columns:
+        df['task_3_answer'] = df['task_3_answer'].map(qu3)
+
+    if 'task_5_answer' in df.columns:
+        df['task_5_answer'] = df['task_5_answer'].map(qu5)
+
+    return df
+
+
 
 def remap_answers_tx(df):
     """
@@ -205,71 +223,118 @@ def remap_answers_tx(df):
             
     return data
 
-def prepare_expert_data(data_folder, alternative_map):
+def prepare_expert_data(data_folder):
     """
-    The procedure is used to read and prepare experts answers
+    Read and prepare expert answers.
 
     Parameters
     ----------
-    data_folder : String
-        The path where all expert files are stored.
-    alternative_map : pandas dataframe, 
-        Alternative map created using crowd data to assign same ids to URL media.
+    data_folder : str
+        Path where all expert files are stored.
+    alternative_map : pandas.DataFrame
+        Map created using crowd data to assign same ids to media URLs.
 
     Returns
     -------
-    df_expert : pandas df
-        Expert data set in transactional form
-    df_science : TYPE
-        DESCRIPTION.
-    df_journal : TYPE
-        DESCRIPTION.
+    df_expert : pandas.DataFrame
+        Combined expert dataset in transactional form.
+    df_science : pandas.DataFrame
+        Science expert dataset in transactional form.
+    df_journal : pandas.DataFrame
+        Journalism expert dataset in transactional form.
+    """
 
-    """  
+    expert_cols = [ 'URL', 'Score', 'voter']
 
-    expert_cols = ['ID', 'URL', 'Score', 'voter']
-    
-    science = pd.DataFrame()
-    i = 0
-    for file in glob.glob( data_folder + "*Science*.csv"):
-        i = i + 1
-        df = pd.read_csv(file)
-        df['voter'] = 'Science-' + str(i) + '_expert'
-        if science.empty:
-            science = df
+    # -------------------------
+    # Science files
+    # -------------------------
+    sci_files = [
+        os.path.join(data_folder, f)
+        for f in os.listdir(data_folder)
+        if 'science' in f.lower() and f.endswith('.csv')
+    ]
+
+    if not sci_files:
+        raise ValueError("No matching science files found.")
+
+    sci_dfs = []
+
+    for file in sci_files:
+        sci_df = pd.read_csv(file)
+        filename = os.path.basename(file)
+
+        match = re.search(r'#(\d+)', filename)
+        num = match.group(1) if match else "unknown"
+
+        sci_df['voter'] = f"Science_{num}_expert"
+        sci_dfs.append(sci_df)
+
+    sci_final = pd.concat(sci_dfs, ignore_index=True).drop_duplicates()
+    science = sci_final.dropna(subset=['URL', 'Score', 'voter']).copy()
+
+    # -------------------------
+    # Journalism files
+    # -------------------------
+    jrn_files = [
+        os.path.join(data_folder, f)
+        for f in os.listdir(data_folder)
+        if 'journalism' in f.lower() and f.endswith('.csv')
+    ]
+
+    if not jrn_files:
+        raise ValueError("No matching journalism files found.")
+
+    jrn_dfs = []
+
+    for file in jrn_files:
+        jrn_df = pd.read_csv(file)
+        filename = os.path.basename(file)
+
+        match = re.search(r'#([A-Za-z])', filename)
+        if match:
+            letter = match.group(1).upper()
+            num = ord(letter) - ord('A') + 1
         else:
-            science = pd.concat([science, df], ignore_index = True)
-            
-    journal = pd.DataFrame()
-    i = 0
-    for file in glob.glob( data_folder + "*Journalism*.csv"):
-        i = i + 1
-        df = pd.read_csv(file)
-        df['voter'] = 'Journalism-' + str(i) + '_expert'
-        if journal.empty:
-            journal = df
-        else:
-            journal = pd.concat([journal, df], ignore_index = True)
-            
-    df_science = science[expert_cols]
-    df_journal = journal[expert_cols]
+            num = "unknown"
+
+        jrn_df['voter'] = f"Journalism_{num}_expert"
+        jrn_dfs.append(jrn_df)
+
+    jrn_final = pd.concat(jrn_dfs, ignore_index=True).drop_duplicates()
+    journal = jrn_final.dropna(subset=['URL', 'Score', 'voter']).copy()
+
+    # -------------------------
+    # Select columns
+    # -------------------------
+    df_science = science[expert_cols].copy()
+    df_journal = journal[expert_cols].copy()
+
+    # Make score numeric
+    df_science['Score'] = pd.to_numeric(df_science['Score'], errors='coerce')
+
+    df_journal['Score'] = pd.to_numeric(
+        df_journal['Score'].astype(str).str.extract(r'(\d+)')[0],
+        errors='coerce'
+    )
+
+    # -------------------------
+    # Merge with alternative map
+    # -------------------------
     
-    df_journal['Score'] = journal['Score'].str.split('\)', expand = True)[0]
-    
-    df_science = pd.merge(alternative_map, df_science, how = 'inner', left_on = 'alternative_name', right_on =  'URL')[['alternative_id', 'URL', 'Score', 'voter']]
-    df_journal = pd.merge(alternative_map, df_journal, how = 'inner', left_on = 'alternative_name', right_on =  'URL')[['alternative_id', 'URL', 'Score', 'voter']]
-    
-    df_expert = pd.concat([df_science, df_journal]).reset_index().drop('index', axis = 1)
-    df_expert = df_expert[['voter', 'alternative_id', 'Score']]
-    
-    df_expert = df_expert.rename(columns={ 'Score': 'rate'})
-    df_expert = df_expert[df_expert.rate.notnull()]
-    df_expert = df_expert.drop_duplicates()
-    
-    df_science = df_expert[df_expert['voter'].str.contains('Science')]
-    df_journal = df_expert[df_expert['voter'].str.contains('Journalism')]
-    return df_expert, df_science, df_journal 
-           
+    # -------------------------
+    # Combine
+    # -------------------------
+    df_expert = pd.concat([df_science, df_journal], ignore_index=True)
+    #df_expert = df_expert[['voter', 'alternative_id', 'Score']]
+    df_expert = df_expert.rename(columns={'Score': 'rate'})
+    df_expert = df_expert[df_expert['rate'].notna()].drop_duplicates()
+
+    # Separate outputs
+    df_science = df_expert[df_expert['voter'].str.contains('Science', na=False)].copy()
+    df_journal = df_expert[df_expert['voter'].str.contains('Journalism', na=False)].copy()
+
+    return df_expert, df_science, df_journal           
 
 # df_trans = pd.concat([all_crowd_grades, all_exp_grades]) #.reset_index() #df_expert
 # df_trans = df_crowd_2020
